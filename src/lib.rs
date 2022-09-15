@@ -1,5 +1,7 @@
-use async_trait::async_trait;
+#[cfg(feature = "specter")]
+pub mod specter;
 
+use async_trait::async_trait;
 use bitcoin::util::psbt::PartiallySignedTransaction as Psbt;
 use std::fmt::Debug;
 
@@ -27,9 +29,8 @@ impl std::fmt::Display for Error {
 /// HWI is the common Hardware Wallet Interface.
 #[async_trait]
 pub trait HWI: Debug {
-    type Error: Into<Error> + Debug;
     /// Check that the device is connected but not necessarily available.
-    async fn is_connected(&mut self) -> Result<(), Self::Error>;
+    async fn is_connected(&mut self) -> Result<(), Error>;
     /// Sign a partially signed bitcoin transaction (PSBT).
-    async fn sign_tx(&mut self, tx: &Psbt) -> Result<Psbt, Self::Error>;
+    async fn sign_tx(&mut self, tx: &Psbt) -> Result<Psbt, Error>;
 }
