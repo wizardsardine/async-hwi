@@ -2,5 +2,10 @@
 name = "async-hwi"
 version = "0.0.1"
 edition = "2018"
+description = "Async hardware wallet interface"
+license = "BSD-3-Clause"
 
 [dependencies]
+async-trait = "0.1.52"
+futures = "0.3"
+bitcoin = { version = "0.27", features = ["base64", "use-serde"] }
