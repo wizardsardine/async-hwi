@@ -7,7 +7,7 @@ pub use tokio::net::TcpStream;
 use tokio_serial::SerialPortBuilderExt;
 pub use tokio_serial::SerialStream;
 
-use super::{Error as HWIError, HWI};
+use super::{DeviceType, Error as HWIError, HWI};
 use async_trait::async_trait;
 
 #[derive(Debug)]
@@ -100,6 +100,10 @@ impl SpecterSimulator {
 
 #[async_trait]
 impl HWI for Specter<TcpStream> {
+    fn device_type(&self) -> DeviceType {
+        DeviceType::SpecterSimulator
+    }
+
     async fn is_connected(&mut self) -> Result<(), HWIError> {
         self.fingerprint().await?;
         Ok(())
@@ -153,6 +157,10 @@ impl Specter<SerialStream> {
 
 #[async_trait]
 impl HWI for Specter<SerialStream> {
+    fn device_type(&self) -> DeviceType {
+        DeviceType::Specter
+    }
+
     async fn is_connected(&mut self) -> Result<(), HWIError> {
         Self::get_serial_port()?;
         Ok(())

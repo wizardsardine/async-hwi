@@ -11,6 +11,10 @@ pub async fn main() {
         list.len(),
         if list.len() > 1 { "s" } else { "" }
     );
+
+    for hw in list {
+        eprintln!("{}", hw.device_type())
+    }
 }
 
 pub async fn list_hardware_wallets() -> Vec<Box<dyn HWI + Send>> {
