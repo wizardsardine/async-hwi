@@ -1,4 +1,6 @@
 use async_hwi::HWI;
+use bitcoin::util::bip32::DerivationPath;
+use std::str::FromStr;
 
 #[cfg(feature = "specter")]
 use async_hwi::specter::{Specter, SpecterSimulator};
@@ -12,8 +14,13 @@ pub async fn main() {
         if list.len() > 1 { "s" } else { "" }
     );
 
-    for hw in list {
-        eprintln!("{}", hw.device_type())
+    for mut hw in list {
+        eprintln!("{}", hw.device_type());
+        let key = hw
+            .get_extended_pubkey(&DerivationPath::from_str("m/0").unwrap())
+            .await
+            .unwrap();
+        eprintln!("{}", key);
     }
 }
 

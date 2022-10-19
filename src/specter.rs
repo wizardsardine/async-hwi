@@ -1,4 +1,11 @@
-use bitcoin::{base64, consensus::encode, util::psbt::PartiallySignedTransaction as Psbt};
+use std::str::FromStr;
+
+use bitcoin::{
+    base64,
+    consensus::encode,
+    util::bip32::{DerivationPath, ExtendedPubKey},
+    util::psbt::PartiallySignedTransaction as Psbt,
+};
 
 use serialport::{available_ports, SerialPortType};
 use tokio::io::AsyncBufReadExt;
@@ -20,38 +27,27 @@ impl<T: Unpin + AsyncWrite + AsyncRead> Specter<T> {
         self.request("\r\n\r\nfingerprint\r\n").await
     }
 
-    pub async fn sign(&mut self, psbt: &Psbt) -> Result<Psbt, SpecterError> {
-        let mut new_psbt: Psbt = self
-            .request(&format!(
-                "\r\n\r\nsign {}\r\n",
-                base64::encode(&encode::serialize(&psbt))
-            ))
+    pub async fn get_extended_pubkey(
+        &mut self,
+        path: &DerivationPath,
+    ) -> Result<ExtendedPubKey, SpecterError> {
+        self.request(&format!("\r\n\r\nxpub {}\r\n", path))
             .await
-            .and_then(|resp| base64::decode(&resp).map_err(|e| SpecterError::Device(e.to_string())))
-            .and_then(|bytes| {
-                encode::deserialize(&bytes).map_err(|e| SpecterError::Device(e.to_string()))
-            })?;
+            .and_then(|resp| {
+                ExtendedPubKey::from_str(&resp).map_err(|e| SpecterError::Device(e.to_string()))
+            })
+    }
 
-        // Psbt returned by specter wallet has all unnecessary fields removed,
-        // only global transaction and partial signatures for all inputs remain in it.
-        // In order to have the full Psbt, the partial_sigs are extracted and appended
-        // to the original psbt.
-        let mut psbt = psbt.clone();
-        let mut has_signed = false;
-        for i in 0..new_psbt.inputs.len() {
-            if !new_psbt.inputs[i].partial_sigs.is_empty() {
-                has_signed = true;
-                psbt.inputs[i]
-                    .partial_sigs
-                    .append(&mut new_psbt.inputs[i].partial_sigs)
-            }
-        }
-
-        if !has_signed {
-            return Err(SpecterError::DeviceDidNotSign);
-        }
-
-        Ok(psbt)
+    pub async fn sign(&mut self, psbt: &Psbt) -> Result<Psbt, SpecterError> {
+        self.request(&format!(
+            "\r\n\r\nsign {}\r\n",
+            base64::encode(&encode::serialize(&psbt))
+        ))
+        .await
+        .and_then(|resp| base64::decode(&resp).map_err(|e| SpecterError::Device(e.to_string())))
+        .and_then(|bytes| {
+            encode::deserialize(&bytes).map_err(|e| SpecterError::Device(e.to_string()))
+        })
     }
 
     async fn request(&mut self, req: &str) -> Result<String, SpecterError> {
@@ -109,8 +105,34 @@ impl HWI for Specter<TcpStream> {
         Ok(())
     }
 
-    async fn sign_tx(&mut self, tx: &Psbt) -> Result<Psbt, HWIError> {
-        Ok(self.sign(tx).await?)
+    async fn get_extended_pubkey(
+        &mut self,
+        path: &DerivationPath,
+    ) -> Result<ExtendedPubKey, HWIError> {
+        Ok(self.get_extended_pubkey(path).await?)
+    }
+
+    async fn sign_tx(&mut self, psbt: &mut Psbt) -> Result<(), HWIError> {
+        let mut new_psbt = self.sign(psbt).await?;
+        // Psbt returned by specter wallet has all unnecessary fields removed,
+        // only global transaction and partial signatures for all inputs remain in it.
+        // In order to have the full Psbt, the partial_sigs are extracted and appended
+        // to the original psbt.
+        let mut has_signed = false;
+        for i in 0..new_psbt.inputs.len() {
+            if !new_psbt.inputs[i].partial_sigs.is_empty() {
+                has_signed = true;
+                psbt.inputs[i]
+                    .partial_sigs
+                    .append(&mut new_psbt.inputs[i].partial_sigs)
+            }
+        }
+
+        if !has_signed {
+            return Err(SpecterError::DeviceDidNotSign.into());
+        }
+
+        Ok(())
     }
 }
 
@@ -165,8 +187,35 @@ impl HWI for Specter<SerialStream> {
         Self::get_serial_port()?;
         Ok(())
     }
-    async fn sign_tx(&mut self, tx: &Psbt) -> Result<Psbt, HWIError> {
-        self.sign(tx).await.map_err(|e| e.into())
+
+    async fn get_extended_pubkey(
+        &mut self,
+        path: &DerivationPath,
+    ) -> Result<ExtendedPubKey, HWIError> {
+        Ok(self.get_extended_pubkey(path).await?)
+    }
+
+    async fn sign_tx(&mut self, psbt: &mut Psbt) -> Result<(), HWIError> {
+        let mut new_psbt = self.sign(psbt).await?;
+        // Psbt returned by specter wallet has all unnecessary fields removed,
+        // only global transaction and partial signatures for all inputs remain in it.
+        // In order to have the full Psbt, the partial_sigs are extracted and appended
+        // to the original psbt.
+        let mut has_signed = false;
+        for i in 0..new_psbt.inputs.len() {
+            if !new_psbt.inputs[i].partial_sigs.is_empty() {
+                has_signed = true;
+                psbt.inputs[i]
+                    .partial_sigs
+                    .append(&mut new_psbt.inputs[i].partial_sigs)
+            }
+        }
+
+        if !has_signed {
+            return Err(SpecterError::DeviceDidNotSign.into());
+        }
+
+        Ok(())
     }
 }
 

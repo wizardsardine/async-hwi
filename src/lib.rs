@@ -2,7 +2,11 @@
 pub mod specter;
 
 use async_trait::async_trait;
-use bitcoin::util::psbt::PartiallySignedTransaction as Psbt;
+use bitcoin::util::{
+    bip32::{DerivationPath, ExtendedPubKey},
+    psbt::PartiallySignedTransaction as Psbt,
+};
+
 use std::fmt::Debug;
 
 #[derive(Debug, Clone)]
@@ -32,8 +36,11 @@ pub trait HWI: Debug {
     fn device_type(&self) -> DeviceType;
     /// Check that the device is connected but not necessarily available.
     async fn is_connected(&mut self) -> Result<(), Error>;
+    /// Get the xpub with the given derivation path.
+    async fn get_extended_pubkey(&mut self, path: &DerivationPath)
+        -> Result<ExtendedPubKey, Error>;
     /// Sign a partially signed bitcoin transaction (PSBT).
-    async fn sign_tx(&mut self, tx: &Psbt) -> Result<Psbt, Error>;
+    async fn sign_tx(&mut self, tx: &mut Psbt) -> Result<(), Error>;
 }
 
 /// DeviceType is the result of the following process:
