@@ -1,0 +1,23 @@
+[package]
+name = "async-hwi"
+version = "0.0.1"
+edition = "2018"
+description = "Async hardware wallet interface"
+license = "BSD-3-Clause"
+
+[features]
+default = []
+specter = ["tokio", "tokio-serial", "serialport"]
+
+[dependencies]
+async-trait = "0.1.52"
+futures = "0.3"
+bitcoin = { version = "0.27", features = ["base64", "use-serde"] }
+
+# specter
+tokio = { version = "1.9.0", features = ["net", "io-util"], optional = true }
+tokio-serial = { version = "5.4.1", optional = true }
+serialport = { version = "4", optional = true }
+
+[dev-dependencies]
+tokio =  { version = "1.9.0", features = ["macros", "rt", "rt-multi-thread"]}
