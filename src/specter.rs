@@ -1,9 +1,10 @@
+use std::fmt::Debug;
 use std::str::FromStr;
 
 use bitcoin::{
     base64,
     consensus::encode,
-    util::bip32::{DerivationPath, ExtendedPubKey},
+    util::bip32::{DerivationPath, ExtendedPubKey, Fingerprint},
     util::psbt::PartiallySignedTransaction as Psbt,
 };
 
@@ -22,97 +23,82 @@ pub struct Specter<T> {
     transport: T,
 }
 
-impl<T: Unpin + AsyncWrite + AsyncRead> Specter<T> {
-    pub async fn fingerprint(&mut self) -> Result<String, SpecterError> {
-        self.request("\r\n\r\nfingerprint\r\n").await
+impl<T: Transport> Specter<T> {
+    pub async fn fingerprint(&self) -> Result<Fingerprint, SpecterError> {
+        self.transport
+            .request("\r\n\r\nfingerprint\r\n")
+            .await
+            .and_then(|resp| {
+                Fingerprint::from_str(&resp).map_err(|e| SpecterError::Device(e.to_string()))
+            })
     }
 
     pub async fn get_extended_pubkey(
-        &mut self,
+        &self,
         path: &DerivationPath,
     ) -> Result<ExtendedPubKey, SpecterError> {
-        self.request(&format!("\r\n\r\nxpub {}\r\n", path))
+        self.transport
+            .request(&format!("\r\n\r\nxpub {}\r\n", path))
             .await
             .and_then(|resp| {
                 ExtendedPubKey::from_str(&resp).map_err(|e| SpecterError::Device(e.to_string()))
             })
     }
 
-    pub async fn sign(&mut self, psbt: &Psbt) -> Result<Psbt, SpecterError> {
-        self.request(&format!(
-            "\r\n\r\nsign {}\r\n",
-            base64::encode(&encode::serialize(&psbt))
-        ))
-        .await
-        .and_then(|resp| base64::decode(&resp).map_err(|e| SpecterError::Device(e.to_string())))
-        .and_then(|bytes| {
-            encode::deserialize(&bytes).map_err(|e| SpecterError::Device(e.to_string()))
-        })
-    }
-
-    async fn request(&mut self, req: &str) -> Result<String, SpecterError> {
+    /// If the descriptor contains master public keys but doesn't contain wildcard derivations,
+    /// the default derivation /{0,1}/* will be added to all extended keys in the descriptor.
+    /// If at least one of the xpubs has a wildcard derivation the descriptor will not be changed.
+    /// /** is an equivalent of /{0,1}/*.
+    pub async fn register_wallet(&self, name: &str, policy: &str) -> Result<(), SpecterError> {
         self.transport
-            .write_all(req.as_bytes())
-            .await
-            .map_err(|e| SpecterError::Device(e.to_string()))?;
-
-        let reader = tokio::io::BufReader::new(&mut self.transport);
-        let mut lines = reader.lines();
-        if let Some(line) = lines
-            .next_line()
-            .await
-            .map_err(|e| SpecterError::Device(e.to_string()))?
-        {
-            if line != "ACK" {
-                return Err(SpecterError::Device(
-                    "Received an incorrect answer".to_string(),
-                ));
-            }
-        }
-
-        if let Some(line) = lines
-            .next_line()
-            .await
-            .map_err(|e| SpecterError::Device(e.to_string()))?
-        {
-            return Ok(line);
-        }
-        Err(SpecterError::Device("Unexpected".to_string()))
+            .request(&format!(
+                "\r\n\r\naddwallet {}&{}\r\n",
+                name,
+                policy.replace("/**", "/{0,1}/*")
+            ))
+            .await?;
+        Ok(())
     }
-}
 
-pub type SpecterSimulator = Specter<TcpStream>;
-
-impl SpecterSimulator {
-    pub const DEFAULT_ADDRESS: &'static str = "127.0.0.1:8789";
-
-    pub async fn try_connect() -> Result<Self, SpecterError> {
-        let transport = TcpStream::connect(Self::DEFAULT_ADDRESS)
+    pub async fn sign(&self, psbt: &Psbt) -> Result<Psbt, SpecterError> {
+        self.transport
+            .request(&format!(
+                "\r\n\r\nsign {}\r\n",
+                base64::encode(&encode::serialize(&psbt))
+            ))
             .await
-            .map_err(|e| SpecterError::Device(e.to_string()))?;
-        Ok(Specter { transport })
+            .and_then(|resp| base64::decode(&resp).map_err(|e| SpecterError::Device(e.to_string())))
+            .and_then(|bytes| {
+                encode::deserialize(&bytes).map_err(|e| SpecterError::Device(e.to_string()))
+            })
     }
 }
 
 #[async_trait]
-impl HWI for Specter<TcpStream> {
+impl<T: Transport + Sync + Send> HWI for Specter<T> {
     fn device_type(&self) -> DeviceType {
         DeviceType::SpecterSimulator
     }
 
-    async fn is_connected(&mut self) -> Result<(), HWIError> {
+    async fn is_connected(&self) -> Result<(), HWIError> {
         self.fingerprint().await?;
         Ok(())
     }
 
-    async fn get_extended_pubkey(
-        &mut self,
-        path: &DerivationPath,
-    ) -> Result<ExtendedPubKey, HWIError> {
+    async fn get_fingerprint(&self) -> Result<Fingerprint, HWIError> {
+        Ok(self.fingerprint().await?)
+    }
+
+    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, HWIError> {
         Ok(self.get_extended_pubkey(path).await?)
     }
 
-    async fn sign_tx(&mut self, psbt: &mut Psbt) -> Result<(), HWIError> {
+    async fn register_wallet(&self, name: &str, policy: &str) -> Result<Option<Vec<u8>>, HWIError> {
+        self.register_wallet(name, policy).await?;
+        Ok(None)
+    }
+
+    async fn sign_tx(&self, psbt: &mut Psbt) -> Result<(), HWIError> {
         let mut new_psbt = self.sign(psbt).await?;
         // Psbt returned by specter wallet has all unnecessary fields removed,
         // only global transaction and partial signatures for all inputs remain in it.
@@ -136,23 +122,101 @@ impl HWI for Specter<TcpStream> {
     }
 }
 
-impl From<Specter<TcpStream>> for Box<dyn HWI + Send> {
-    fn from(s: Specter<TcpStream>) -> Box<dyn HWI + Send> {
+impl<T: 'static + Transport + Sync + Send> From<Specter<T>> for Box<dyn HWI + Send> {
+    fn from(s: Specter<T>) -> Box<dyn HWI + Send> {
         Box::new(s)
     }
 }
 
-const SPECTER_VID: u16 = 61525;
-const SPECTER_PID: u16 = 38914;
+async fn exchange<T: Unpin + AsyncRead + AsyncWrite>(
+    transport: &mut T,
+    req: &str,
+) -> Result<String, SpecterError> {
+    transport
+        .write_all(req.as_bytes())
+        .await
+        .map_err(|e| SpecterError::Device(e.to_string()))?;
 
-impl Specter<SerialStream> {
+    let reader = tokio::io::BufReader::new(transport);
+    let mut lines = reader.lines();
+    if let Some(line) = lines
+        .next_line()
+        .await
+        .map_err(|e| SpecterError::Device(e.to_string()))?
+    {
+        if line != "ACK" {
+            return Err(SpecterError::Device(
+                "Received an incorrect answer".to_string(),
+            ));
+        }
+    }
+
+    if let Some(line) = lines
+        .next_line()
+        .await
+        .map_err(|e| SpecterError::Device(e.to_string()))?
+    {
+        return Ok(line);
+    }
+    Err(SpecterError::Device("Unexpected".to_string()))
+}
+
+#[async_trait]
+pub trait Transport: Debug {
+    async fn request(&self, req: &str) -> Result<String, SpecterError>;
+}
+
+#[derive(Debug)]
+pub struct TcpTransport;
+pub const DEFAULT_ADDRESS: &'static str = "127.0.0.1:8789";
+
+#[async_trait]
+impl Transport for TcpTransport {
+    async fn request(&self, req: &str) -> Result<String, SpecterError> {
+        let mut transport = TcpStream::connect(DEFAULT_ADDRESS)
+            .await
+            .map_err(|e| SpecterError::Device(e.to_string()))?;
+        exchange(&mut transport, req).await
+    }
+}
+
+pub type SpecterSimulator = Specter<TcpTransport>;
+
+impl SpecterSimulator {
+    pub async fn try_connect() -> Result<Self, HWIError> {
+        let s = SpecterSimulator {
+            transport: TcpTransport {},
+        };
+        s.is_connected().await?;
+        Ok(s)
+    }
+}
+
+impl Specter<SerialTransport> {
+    pub async fn try_connect_serial() -> Result<Self, HWIError> {
+        let s = Specter {
+            transport: SerialTransport {},
+        };
+        s.is_connected().await?;
+        Ok(s)
+    }
+}
+
+#[derive(Debug)]
+pub struct SerialTransport;
+impl SerialTransport {
+    pub const SPECTER_VID: u16 = 61525;
+    pub const SPECTER_PID: u16 = 38914;
+
     pub fn get_serial_port() -> Result<String, SpecterError> {
         match available_ports() {
             Ok(ports) => ports
                 .iter()
                 .find_map(|p| {
                     if let SerialPortType::UsbPort(info) = &p.port_type {
-                        if info.vid == SPECTER_VID && info.pid == SPECTER_PID {
+                        if info.vid == SerialTransport::SPECTER_VID
+                            && info.pid == SerialTransport::SPECTER_PID
+                        {
                             Some(p.port_name.clone())
                         } else {
                             None
@@ -168,60 +232,16 @@ impl Specter<SerialStream> {
             ))),
         }
     }
-    pub fn try_connect_serial() -> Result<Self, SpecterError> {
-        let tty = Self::get_serial_port()?;
-        let transport = tokio_serial::new(tty, 9600)
-            .open_native_async()
-            .map_err(|e| SpecterError::Device(e.to_string()))?;
-        Ok(Specter { transport })
-    }
 }
 
 #[async_trait]
-impl HWI for Specter<SerialStream> {
-    fn device_type(&self) -> DeviceType {
-        DeviceType::Specter
-    }
-
-    async fn is_connected(&mut self) -> Result<(), HWIError> {
-        Self::get_serial_port()?;
-        Ok(())
-    }
-
-    async fn get_extended_pubkey(
-        &mut self,
-        path: &DerivationPath,
-    ) -> Result<ExtendedPubKey, HWIError> {
-        Ok(self.get_extended_pubkey(path).await?)
-    }
-
-    async fn sign_tx(&mut self, psbt: &mut Psbt) -> Result<(), HWIError> {
-        let mut new_psbt = self.sign(psbt).await?;
-        // Psbt returned by specter wallet has all unnecessary fields removed,
-        // only global transaction and partial signatures for all inputs remain in it.
-        // In order to have the full Psbt, the partial_sigs are extracted and appended
-        // to the original psbt.
-        let mut has_signed = false;
-        for i in 0..new_psbt.inputs.len() {
-            if !new_psbt.inputs[i].partial_sigs.is_empty() {
-                has_signed = true;
-                psbt.inputs[i]
-                    .partial_sigs
-                    .append(&mut new_psbt.inputs[i].partial_sigs)
-            }
-        }
-
-        if !has_signed {
-            return Err(SpecterError::DeviceDidNotSign.into());
-        }
-
-        Ok(())
-    }
-}
-
-impl From<Specter<SerialStream>> for Box<dyn HWI + Send> {
-    fn from(s: Specter<SerialStream>) -> Box<dyn HWI + Send> {
-        Box::new(s)
+impl Transport for SerialTransport {
+    async fn request(&self, req: &str) -> Result<String, SpecterError> {
+        let tty = Self::get_serial_port()?;
+        let mut transport = tokio_serial::new(tty, 9600)
+            .open_native_async()
+            .map_err(|e| SpecterError::Device(e.to_string()))?;
+        exchange(&mut transport, req).await
     }
 }
 

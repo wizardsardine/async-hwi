@@ -16,11 +16,12 @@ pub async fn main() {
 
     for mut hw in list {
         eprintln!("{}", hw.device_type());
+        eprintln!("{}", hw.get_fingerprint().await.unwrap());
         let key = hw
             .get_extended_pubkey(&DerivationPath::from_str("m/0").unwrap())
             .await
             .unwrap();
-        eprintln!("{}", key);
+        // let resp = hw.register_wallet("my wallet", "wsh(multi(1,tpubD6NzVbkrYhZ4XcB3kRJVob8bmjMvA2zBuagidVzh7ASY5FyAEtq4nTzx9wHYu5XDQAg7vdFNiF6yX38kTCK8zjVVmFTiQR2YKAqZBTGjnoD/**))").await.unwrap();
     }
 }
 
@@ -33,7 +34,7 @@ pub async fn list_hardware_wallets() -> Vec<Box<dyn HWI + Send>> {
     }
 
     #[cfg(feature = "specter")]
-    if let Ok(device) = Specter::try_connect_serial() {
+    if let Ok(device) = Specter::try_connect_serial().await {
         hws.push(device.into());
     }
 

@@ -3,7 +3,7 @@ pub mod specter;
 
 use async_trait::async_trait;
 use bitcoin::util::{
-    bip32::{DerivationPath, ExtendedPubKey},
+    bip32::{DerivationPath, ExtendedPubKey, Fingerprint},
     psbt::PartiallySignedTransaction as Psbt,
 };
 
@@ -35,12 +35,15 @@ impl std::fmt::Display for Error {
 pub trait HWI: Debug {
     fn device_type(&self) -> DeviceType;
     /// Check that the device is connected but not necessarily available.
-    async fn is_connected(&mut self) -> Result<(), Error>;
+    async fn is_connected(&self) -> Result<(), Error>;
+    /// Get master fingerprint.
+    async fn get_fingerprint(&self) -> Result<Fingerprint, Error>;
     /// Get the xpub with the given derivation path.
-    async fn get_extended_pubkey(&mut self, path: &DerivationPath)
-        -> Result<ExtendedPubKey, Error>;
+    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, Error>;
+    /// Register a new wallet policy
+    async fn register_wallet(&self, name: &str, policy: &str) -> Result<Option<Vec<u8>>, Error>;
     /// Sign a partially signed bitcoin transaction (PSBT).
-    async fn sign_tx(&mut self, tx: &mut Psbt) -> Result<(), Error>;
+    async fn sign_tx(&self, tx: &mut Psbt) -> Result<(), Error>;
 }
 
 /// DeviceType is the result of the following process:
