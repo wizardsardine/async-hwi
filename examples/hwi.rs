@@ -1,9 +1,10 @@
 use async_hwi::HWI;
-use bitcoin::util::bip32::DerivationPath;
-use std::str::FromStr;
 
 #[cfg(feature = "specter")]
 use async_hwi::specter::{Specter, SpecterSimulator};
+
+#[cfg(feature = "ledger")]
+use async_hwi::ledger::{Ledger, LedgerSimulator};
 
 #[tokio::main]
 pub async fn main() {
@@ -14,14 +15,12 @@ pub async fn main() {
         if list.len() > 1 { "s" } else { "" }
     );
 
-    for mut hw in list {
-        eprintln!("{}", hw.device_type());
-        eprintln!("{}", hw.get_fingerprint().await.unwrap());
-        let key = hw
-            .get_extended_pubkey(&DerivationPath::from_str("m/0").unwrap())
-            .await
-            .unwrap();
-        // let resp = hw.register_wallet("my wallet", "wsh(multi(1,tpubD6NzVbkrYhZ4XcB3kRJVob8bmjMvA2zBuagidVzh7ASY5FyAEtq4nTzx9wHYu5XDQAg7vdFNiF6yX38kTCK8zjVVmFTiQR2YKAqZBTGjnoD/**))").await.unwrap();
+    for hw in list {
+        eprintln!(
+            "{} (fingerprint: {})",
+            hw.device_kind(),
+            hw.get_master_fingerprint().await.unwrap()
+        );
     }
 }
 
@@ -35,6 +34,16 @@ pub async fn list_hardware_wallets() -> Vec<Box<dyn HWI + Send>> {
 
     #[cfg(feature = "specter")]
     if let Ok(device) = Specter::try_connect_serial().await {
+        hws.push(device.into());
+    }
+
+    #[cfg(feature = "ledger")]
+    if let Ok(device) = LedgerSimulator::try_connect().await {
+        hws.push(device.into());
+    }
+
+    #[cfg(feature = "ledger")]
+    if let Ok(device) = Ledger::try_connect_hid() {
         hws.push(device.into());
     }
 
