@@ -3,7 +3,7 @@ pub mod specter;
 
 use async_trait::async_trait;
 use bitcoin::util::{
-    bip32::{DerivationPath, ExtendedPubKey},
+    bip32::{DerivationPath, ExtendedPubKey, Fingerprint},
     psbt::PartiallySignedTransaction as Psbt,
 };
 
@@ -36,9 +36,13 @@ pub trait HWI: Debug {
     fn device_type(&self) -> DeviceType;
     /// Check that the device is connected but not necessarily available.
     async fn is_connected(&mut self) -> Result<(), Error>;
+    /// Get master fingerprint.
+    async fn get_fingerprint(&mut self) -> Result<Fingerprint, Error>;
     /// Get the xpub with the given derivation path.
     async fn get_extended_pubkey(&mut self, path: &DerivationPath)
         -> Result<ExtendedPubKey, Error>;
+    /// Register a new wallet policy
+    async fn register_wallet(&mut self, name: &str, policy: &str) -> Result<(), Error>;
     /// Sign a partially signed bitcoin transaction (PSBT).
     async fn sign_tx(&mut self, tx: &mut Psbt) -> Result<(), Error>;
 }

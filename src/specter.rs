@@ -3,7 +3,7 @@ use std::str::FromStr;
 use bitcoin::{
     base64,
     consensus::encode,
-    util::bip32::{DerivationPath, ExtendedPubKey},
+    util::bip32::{DerivationPath, ExtendedPubKey, Fingerprint},
     util::psbt::PartiallySignedTransaction as Psbt,
 };
 
@@ -23,8 +23,12 @@ pub struct Specter<T> {
 }
 
 impl<T: Unpin + AsyncWrite + AsyncRead> Specter<T> {
-    pub async fn fingerprint(&mut self) -> Result<String, SpecterError> {
-        self.request("\r\n\r\nfingerprint\r\n").await
+    pub async fn fingerprint(&mut self) -> Result<Fingerprint, SpecterError> {
+        self.request("\r\n\r\nfingerprint\r\n")
+            .await
+            .and_then(|resp| {
+                Fingerprint::from_str(&resp).map_err(|e| SpecterError::Device(e.to_string()))
+            })
     }
 
     pub async fn get_extended_pubkey(
@@ -36,6 +40,20 @@ impl<T: Unpin + AsyncWrite + AsyncRead> Specter<T> {
             .and_then(|resp| {
                 ExtendedPubKey::from_str(&resp).map_err(|e| SpecterError::Device(e.to_string()))
             })
+    }
+
+    pub async fn register_wallet(&mut self, name: &str, policy: &str) -> Result<(), SpecterError> {
+        /// If the descriptor contains master public keys but doesn't contain wildcard derivations,
+        /// the default derivation /{0,1}/* will be added to all extended keys in the descriptor.
+        /// If at least one of the xpubs has a wildcard derivation the descriptor will not be changed.
+        /// /** is an equivalent of /{0,1}/*.
+        self.request(&format!(
+            "\r\n\r\naddwallet {}&{}\r\n",
+            name,
+            policy.replace("/**", "/{0,1}/*")
+        ))
+        .await?;
+        Ok(())
     }
 
     pub async fn sign(&mut self, psbt: &Psbt) -> Result<Psbt, SpecterError> {
@@ -105,11 +123,20 @@ impl HWI for Specter<TcpStream> {
         Ok(())
     }
 
+    async fn get_fingerprint(&mut self) -> Result<Fingerprint, HWIError> {
+        Ok(self.fingerprint().await?)
+    }
+
     async fn get_extended_pubkey(
         &mut self,
         path: &DerivationPath,
     ) -> Result<ExtendedPubKey, HWIError> {
         Ok(self.get_extended_pubkey(path).await?)
+    }
+
+    async fn register_wallet(&mut self, name: &str, policy: &str) -> Result<(), HWIError> {
+        self.register_wallet(name, policy).await?;
+        Ok(())
     }
 
     async fn sign_tx(&mut self, psbt: &mut Psbt) -> Result<(), HWIError> {
@@ -188,11 +215,20 @@ impl HWI for Specter<SerialStream> {
         Ok(())
     }
 
+    async fn get_fingerprint(&mut self) -> Result<Fingerprint, HWIError> {
+        Ok(self.fingerprint().await?)
+    }
+
     async fn get_extended_pubkey(
         &mut self,
         path: &DerivationPath,
     ) -> Result<ExtendedPubKey, HWIError> {
         Ok(self.get_extended_pubkey(path).await?)
+    }
+
+    async fn register_wallet(&mut self, name: &str, policy: &str) -> Result<(), HWIError> {
+        self.register_wallet(name, policy).await?;
+        Ok(())
     }
 
     async fn sign_tx(&mut self, psbt: &mut Psbt) -> Result<(), HWIError> {
