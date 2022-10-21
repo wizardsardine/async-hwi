@@ -3,7 +3,10 @@ name = "async-hwi"
 version = "0.0.1"
 edition = "2018"
 description = "Async hardware wallet interface"
-license = "BSD-3-Clause"
+authors = ["Edouard Paris <m@edouard.paris>"]
+license-file = "LICENSE"
+repository = "https://github.com/revault/async-hwi"
+keywords = ["bitcoin"]
 
 [features]
 default = []
