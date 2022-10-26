@@ -49,7 +49,7 @@ impl<T: Transport> Specter<T> {
     /// the default derivation /{0,1}/* will be added to all extended keys in the descriptor.
     /// If at least one of the xpubs has a wildcard derivation the descriptor will not be changed.
     /// /** is an equivalent of /{0,1}/*.
-    pub async fn register_wallet(&self, name: &str, policy: &str) -> Result<(), SpecterError> {
+    pub async fn add_wallet(&self, name: &str, policy: &str) -> Result<(), SpecterError> {
         self.transport
             .request(&format!(
                 "\r\n\r\naddwallet {}&{}\r\n",
@@ -94,7 +94,7 @@ impl<T: Transport + Sync + Send> HWI for Specter<T> {
     }
 
     async fn register_wallet(&self, name: &str, policy: &str) -> Result<Option<Vec<u8>>, HWIError> {
-        self.register_wallet(name, policy).await?;
+        self.add_wallet(name, policy).await?;
         Ok(None)
     }
 
@@ -176,7 +176,12 @@ impl Transport for TcpTransport {
         let mut transport = TcpStream::connect(DEFAULT_ADDRESS)
             .await
             .map_err(|e| SpecterError::Device(e.to_string()))?;
-        exchange(&mut transport, req).await
+        let res = exchange(&mut transport, req).await;
+        transport
+            .shutdown()
+            .await
+            .map_err(|e| SpecterError::Device(e.to_string()))?;
+        res
     }
 }
 
