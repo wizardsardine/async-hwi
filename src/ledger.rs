@@ -36,8 +36,16 @@ pub struct Ledger<T: Transport> {
 }
 
 impl<T: Transport> Ledger<T> {
-    pub fn load_wallet(&mut self, wallet: WalletPolicy, hmac: Option<[u8; 32]>) {
+    pub fn load_wallet(
+        &mut self,
+        name: impl Into<String>,
+        policy: &str,
+        hmac: Option<[u8; 32]>,
+    ) -> Result<(), HWIError> {
+        let (descriptor_template, keys) = extract_keys_and_template(policy)?;
+        let wallet = WalletPolicy::new(name.into(), Version::V2, descriptor_template, keys);
         self.wallet = Some((wallet, hmac));
+        Ok(())
     }
 }
 
