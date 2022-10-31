@@ -74,3 +74,17 @@ impl std::fmt::Display for DeviceKind {
         }
     }
 }
+
+impl std::str::FromStr for DeviceKind {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "specter" => Ok(DeviceKind::Specter),
+            "specter-simulator" => Ok(DeviceKind::SpecterSimulator),
+            "ledger" => Ok(DeviceKind::Ledger),
+            "ledger-simulator" => Ok(DeviceKind::LedgerSimulator),
+            _ => Err(()),
+        }
+    }
+}
