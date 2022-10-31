@@ -10,9 +10,9 @@ pub trait HWI: Debug {
     /// Get master fingerprint.
     async fn get_fingerprint(&self) -> Result<Fingerprint, Error>;
     /// Get the xpub with the given derivation path.
-    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, Error>;
+    async fn get_extended_pubkey(&self, path: &DerivationPath, display: bool) -> Result<ExtendedPubKey, Error>;
     /// Register a new wallet policy
-    async fn register_wallet(&self, name: &str, policy: &str) -> Result<Option<Vec<u8>>, Error>;
+    async fn register_wallet(&mut self, name: &str, policy: &str) -> Result<Option<[u8; 32]>, Error>;
     /// Sign a partially signed bitcoin transaction (PSBT).
     async fn sign_tx(&self, tx: &mut Psbt) -> Result<(), Error>;
 }
@@ -23,4 +23,5 @@ pub trait HWI: Debug {
 | name                                                    | App version |
 |---------------------------------------------------------|-------------|
 | [Specter](https://github.com/cryptoadvance/specter-diy) | v1.8.0      |
+| [Ledger](https://github.com/LedgerHQ/app-bitcoin-new)   | v2.1.0      |
 

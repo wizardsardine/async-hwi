@@ -2,7 +2,6 @@ use std::fmt::Debug;
 use std::str::FromStr;
 
 use bitcoin::{
-    base64,
     consensus::encode,
     util::bip32::{DerivationPath, ExtendedPubKey, Fingerprint},
     util::psbt::PartiallySignedTransaction as Psbt,
@@ -15,12 +14,13 @@ pub use tokio::net::TcpStream;
 use tokio_serial::SerialPortBuilderExt;
 pub use tokio_serial::SerialStream;
 
-use super::{DeviceType, Error as HWIError, HWI};
+use super::{DeviceKind, Error as HWIError, HWI};
 use async_trait::async_trait;
 
 #[derive(Debug)]
 pub struct Specter<T> {
     transport: T,
+    kind: DeviceKind,
 }
 
 impl<T: Transport> Specter<T> {
@@ -76,8 +76,8 @@ impl<T: Transport> Specter<T> {
 
 #[async_trait]
 impl<T: Transport + Sync + Send> HWI for Specter<T> {
-    fn device_type(&self) -> DeviceType {
-        DeviceType::SpecterSimulator
+    fn device_kind(&self) -> DeviceKind {
+        self.kind
     }
 
     async fn is_connected(&self) -> Result<(), HWIError> {
@@ -85,15 +85,23 @@ impl<T: Transport + Sync + Send> HWI for Specter<T> {
         Ok(())
     }
 
-    async fn get_fingerprint(&self) -> Result<Fingerprint, HWIError> {
+    async fn get_master_fingerprint(&self) -> Result<Fingerprint, HWIError> {
         Ok(self.fingerprint().await?)
     }
 
-    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, HWIError> {
+    async fn get_extended_pubkey(
+        &self,
+        path: &DerivationPath,
+        _display: bool,
+    ) -> Result<ExtendedPubKey, HWIError> {
         Ok(self.get_extended_pubkey(path).await?)
     }
 
-    async fn register_wallet(&self, name: &str, policy: &str) -> Result<Option<Vec<u8>>, HWIError> {
+    async fn register_wallet(
+        &self,
+        name: &str,
+        policy: &str,
+    ) -> Result<Option<[u8; 32]>, HWIError> {
         self.add_wallet(name, policy).await?;
         Ok(None)
     }
@@ -191,6 +199,7 @@ impl SpecterSimulator {
     pub async fn try_connect() -> Result<Self, HWIError> {
         let s = SpecterSimulator {
             transport: TcpTransport {},
+            kind: DeviceKind::SpecterSimulator,
         };
         s.is_connected().await?;
         Ok(s)
@@ -201,6 +210,7 @@ impl Specter<SerialTransport> {
     pub async fn try_connect_serial() -> Result<Self, HWIError> {
         let s = Specter {
             transport: SerialTransport {},
+            kind: DeviceKind::Specter,
         };
         s.is_connected().await?;
         Ok(s)
