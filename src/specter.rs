@@ -54,7 +54,12 @@ impl<T: Transport> Specter<T> {
             .request(&format!(
                 "\r\n\r\naddwallet {}&{}\r\n",
                 name,
-                policy.replace("/**", "/{0,1}/*")
+                policy
+                    .replace("/**", "/{0,1}/*")
+                    // currently specter does not support <0;1> but {0,1}
+                    .replace("<", "{")
+                    .replace(";", ",")
+                    .replace(">", "}")
             ))
             .await?;
         Ok(())
