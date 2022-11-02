@@ -118,7 +118,13 @@ pub fn extract_keys_and_template(policy: &str) -> Result<(String, Vec<WalletPubK
         );
         descriptor_template = descriptor_template.replace(capture.as_str(), &format!("@{}", index));
     }
-    Ok((descriptor_template, pubkeys))
+
+    // Do not include the hash in the descriptor template.
+    if let Some((descriptor_template, _hash)) = descriptor_template.rsplit_once("#") {
+        Ok((descriptor_template.to_string(), pubkeys))
+    } else {
+        Ok((descriptor_template, pubkeys))
+    }
 }
 
 impl Ledger<TransportHID> {
