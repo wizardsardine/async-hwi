@@ -1,11 +1,11 @@
 [package]
-name = "async_hwi"
-version = "0.0.1"
+name = "async-hwi"
+version = "0.0.2"
 edition = "2018"
 description = "Async hardware wallet interface"
 authors = ["Edouard Paris <m@edouard.paris>"]
 license-file = "LICENSE"
-repository = "https://github.com/revault/async_hwi"
+repository = "https://github.com/revault/async-hwi"
 keywords = ["bitcoin"]
 
 [features]
