@@ -98,7 +98,7 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
 
     async fn sign_tx(&self, psbt: &mut Psbt) -> Result<(), HWIError> {
         if let Some((policy, hmac)) = &self.wallet {
-            let sigs = self.client.sign_psbt(psbt, &policy, hmac.as_ref()).await?;
+            let sigs = self.client.sign_psbt(psbt, policy, hmac.as_ref()).await?;
             for (i, key, sig) in sigs {
                 let input = psbt.inputs.get_mut(i).ok_or(HWIError::DeviceDidNotSign)?;
                 input.partial_sigs.insert(key, sig);
@@ -120,7 +120,7 @@ pub fn extract_keys_and_template(policy: &str) -> Result<(String, Vec<WalletPubK
     }
 
     // Do not include the hash in the descriptor template.
-    if let Some((descriptor_template, _hash)) = descriptor_template.rsplit_once("#") {
+    if let Some((descriptor_template, _hash)) = descriptor_template.rsplit_once('#') {
         Ok((descriptor_template.to_string(), pubkeys))
     } else {
         Ok((descriptor_template, pubkeys))
@@ -204,7 +204,7 @@ impl Transport for TransportTcp {
         let mut req = vec![0u8; command_bytes.len() + 4];
         req[..4].copy_from_slice(&(command_bytes.len() as u32).to_be_bytes());
         req[4..].copy_from_slice(&command_bytes);
-        stream.write(&req).await?;
+        stream.write_all(&req).await?;
 
         let mut buff = [0u8; 4];
         let len = match stream.read(&mut buff).await? {

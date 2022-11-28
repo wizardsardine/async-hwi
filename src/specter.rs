@@ -57,9 +57,9 @@ impl<T: Transport> Specter<T> {
                 policy
                     .replace("/**", "/{0,1}/*")
                     // currently specter does not support <0;1> but {0,1}
-                    .replace("<", "{")
-                    .replace(";", ",")
-                    .replace(">", "}")
+                    .replace('<', "{")
+                    .replace(';', ",")
+                    .replace('>', "}")
             ))
             .await?;
         Ok(())
@@ -181,7 +181,7 @@ pub trait Transport: Debug {
 
 #[derive(Debug)]
 pub struct TcpTransport;
-pub const DEFAULT_ADDRESS: &'static str = "127.0.0.1:8789";
+pub const DEFAULT_ADDRESS: &str = "127.0.0.1:8789";
 
 #[async_trait]
 impl Transport for TcpTransport {
