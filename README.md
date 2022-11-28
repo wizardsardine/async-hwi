@@ -1,4 +1,4 @@
-# async-hwi
+# async_hwi
 
 ```rust
 /// HWI is the common Hardware Wallet Interface.

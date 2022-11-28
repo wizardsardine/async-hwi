@@ -1,11 +1,11 @@
 [package]
-name = "async-hwi"
+name = "async_hwi"
 version = "0.0.1"
 edition = "2018"
 description = "Async hardware wallet interface"
 authors = ["Edouard Paris <m@edouard.paris>"]
 license-file = "LICENSE"
-repository = "https://github.com/revault/async-hwi"
+repository = "https://github.com/revault/async_hwi"
 keywords = ["bitcoin"]
 
 [features]
@@ -28,7 +28,7 @@ serialport = { version = "4", optional = true }
 
 # ledger
 regex = { version = "1.6.0", optional = true }
-ledger_bitcoin_client = { git = "https://github.com/edouardparis/app-bitcoin-new/", branch = "bitcoin_client_rs", optional = true }
+ledger_bitcoin_client = { version = "0.1.0", optional = true }
 ledger-apdu = { version = "0.10", optional = true }
 ledger-transport-hid = { version = "0.10", optional = true }
 hidapi = { version = "1.4.1", features = ["linux-static-hidraw"], default-features = false, optional = true }
