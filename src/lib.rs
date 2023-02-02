@@ -10,9 +10,11 @@ use bitcoin::util::{
 };
 
 use std::fmt::Debug;
+use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub enum Error {
+    UnsupportedVersion,
     UnsupportedInput,
     UnimplementedMethod,
     DeviceDisconnected,
@@ -24,6 +26,7 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            Error::UnsupportedVersion => write!(f, "Unsupported version"),
             Error::UnsupportedInput => write!(f, "Unsupported input"),
             Error::UnimplementedMethod => write!(f, "Unimplemented method"),
             Error::DeviceDisconnected => write!(f, "Device disconnected"),
@@ -37,7 +40,10 @@ impl std::fmt::Display for Error {
 /// HWI is the common Hardware Wallet Interface.
 #[async_trait]
 pub trait HWI: Debug {
+    /// Return the device kind
     fn device_kind(&self) -> DeviceKind;
+    /// Application version or OS version.
+    async fn get_version(&self) -> Result<Version, Error>;
     /// Check that the device is connected but not necessarily available.
     async fn is_connected(&self) -> Result<(), Error>;
     /// Get master fingerprint.
@@ -52,6 +58,40 @@ pub trait HWI: Debug {
     async fn register_wallet(&self, name: &str, policy: &str) -> Result<Option<[u8; 32]>, Error>;
     /// Sign a partially signed bitcoin transaction (PSBT).
     async fn sign_tx(&self, tx: &mut Psbt) -> Result<(), Error>;
+}
+
+#[derive(Debug, Clone)]
+pub struct Version {
+    pub major: u32,
+    pub minor: u32,
+    pub patch: u32,
+}
+
+impl std::fmt::Display for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+impl FromStr for Version {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let numbers: Vec<&str> = s.trim_matches('v').split('.').collect();
+        let (major, minor, patch) = if numbers.len() == 3 {
+            (numbers[0], numbers[1], numbers[2])
+        } else if numbers.len() == 2 {
+            (numbers[0], numbers[1], "0")
+        } else {
+            return Err(Error::UnsupportedVersion);
+        };
+
+        Ok(Version {
+            major: u32::from_str(major).map_err(|_| Error::UnsupportedVersion)?,
+            minor: u32::from_str(minor).map_err(|_| Error::UnsupportedVersion)?,
+            patch: u32::from_str(patch).map_err(|_| Error::UnsupportedVersion)?,
+        })
+    }
 }
 
 /// DeviceType is the result of the following process:

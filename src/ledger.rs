@@ -68,6 +68,11 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
         self.kind
     }
 
+    async fn get_version(&self) -> Result<super::Version, HWIError> {
+        let (_, version, _) = self.client.get_version().await?;
+        Ok(super::Version::from_str(&version)?)
+    }
+
     async fn is_connected(&self) -> Result<(), HWIError> {
         self.client.get_master_fingerprint().await?;
         Ok(())

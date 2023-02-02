@@ -17,9 +17,13 @@ pub async fn main() {
 
     for hw in list {
         eprintln!(
-            "{} (fingerprint: {})",
+            "{} (fingerprint: {}, version: {})",
             hw.device_kind(),
-            hw.get_master_fingerprint().await.unwrap()
+            hw.get_master_fingerprint().await.unwrap(),
+            hw.get_version()
+                .await
+                .map(|v| v.to_string())
+                .unwrap_or("unknown".to_string()),
         );
     }
 }
