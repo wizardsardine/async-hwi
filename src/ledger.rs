@@ -108,8 +108,11 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
                 let input = psbt.inputs.get_mut(i).ok_or(HWIError::DeviceDidNotSign)?;
                 input.partial_sigs.insert(key, sig);
             }
+            Ok(())
+        } else {
+            // Ledger cannot sign without policy.
+            Err(HWIError::UnimplementedMethod)
         }
-        Ok(())
     }
 }
 
