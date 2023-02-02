@@ -86,6 +86,10 @@ impl<T: Transport + Sync + Send> HWI for Specter<T> {
         self.kind
     }
 
+    async fn get_version(&self) -> Result<super::Version, HWIError> {
+        Err(HWIError::UnimplementedMethod)
+    }
+
     async fn is_connected(&self) -> Result<(), HWIError> {
         self.fingerprint().await?;
         Ok(())
