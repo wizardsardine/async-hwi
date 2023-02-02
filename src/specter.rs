@@ -46,7 +46,8 @@ impl<T: Transport> Specter<T> {
     }
 
     /// If the descriptor contains master public keys but doesn't contain wildcard derivations,
-    /// the default derivation /{0,1}/* will be added to all extended keys in the descriptor.
+    /// the default derivation /{0,1}/* will be added by the device to all extended keys in the descriptor.
+    /// See: https://github.com/cryptoadvance/specter-diy/blob/master/docs/descriptors.md#default-derivations
     /// If at least one of the xpubs has a wildcard derivation the descriptor will not be changed.
     /// /** is an equivalent of /{0,1}/*.
     pub async fn add_wallet(&self, name: &str, policy: &str) -> Result<(), SpecterError> {
