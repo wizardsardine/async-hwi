@@ -4,7 +4,10 @@
 /// HWI is the common Hardware Wallet Interface.
 #[async_trait]
 pub trait HWI: Debug {
-    fn device_type(&self) -> DeviceType;
+    /// Return the device kind
+    fn device_kind(&self) -> DeviceKind;
+    /// Application version or OS version.
+    async fn get_version(&self) -> Result<Version, Error>;
     /// Check that the device is connected but not necessarily available.
     async fn is_connected(&self) -> Result<(), Error>;
     /// Get master fingerprint.
