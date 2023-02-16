@@ -10,7 +10,7 @@ use bitcoin::util::{
 };
 use regex::Regex;
 
-use hidapi::HidApi;
+pub use hidapi::{DeviceInfo, HidApi};
 use ledger_apdu::APDUAnswer;
 use ledger_transport_hid::TransportNativeHID;
 use tokio::{
@@ -136,6 +136,20 @@ pub fn extract_keys_and_template(policy: &str) -> Result<(String, Vec<WalletPubK
 }
 
 impl Ledger<TransportHID> {
+    pub fn enumerate(api: &HidApi) -> impl Iterator<Item = &DeviceInfo> {
+        TransportNativeHID::list_ledgers(api)
+    }
+
+    pub fn connect(api: &HidApi, device: &DeviceInfo) -> Result<Self, HWIError> {
+        let hid =
+            TransportNativeHID::open_device(api, device).map_err(|_| HWIError::DeviceNotFound)?;
+        Ok(Ledger {
+            client: BitcoinClient::new(TransportHID(hid)),
+            wallet: None,
+            kind: DeviceKind::Ledger,
+        })
+    }
+
     pub fn try_connect_hid() -> Result<Self, HWIError> {
         let hid = TransportNativeHID::new(&HidApi::new().map_err(|_| HWIError::DeviceNotFound)?)
             .map_err(|_| HWIError::DeviceNotFound)?;
