@@ -4,7 +4,7 @@ use async_hwi::HWI;
 use async_hwi::specter::{Specter, SpecterSimulator};
 
 #[cfg(feature = "ledger")]
-use async_hwi::ledger::{Ledger, LedgerSimulator};
+use async_hwi::ledger::{HidApi, Ledger, LedgerSimulator, TransportHID};
 
 #[tokio::main]
 pub async fn main() {
@@ -47,8 +47,13 @@ pub async fn list_hardware_wallets() -> Vec<Box<dyn HWI + Send>> {
     }
 
     #[cfg(feature = "ledger")]
-    if let Ok(device) = Ledger::try_connect_hid() {
-        hws.push(device.into());
+    {
+        let api = HidApi::new().unwrap();
+        for detected in Ledger::<TransportHID>::enumerate(&api) {
+            if let Ok(device) = Ledger::<TransportHID>::connect(&api, detected) {
+                hws.push(device.into());
+            }
+        }
     }
 
     hws
