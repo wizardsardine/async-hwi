@@ -10,7 +10,6 @@ use bitcoin::util::{
 };
 
 use std::fmt::Debug;
-use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -60,37 +59,25 @@ pub trait HWI: Debug {
     async fn sign_tx(&self, tx: &mut Psbt) -> Result<(), Error>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone, Default)]
 pub struct Version {
     pub major: u32,
     pub minor: u32,
     pub patch: u32,
+    pub prerelease: Option<String>,
 }
 
 impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
-    }
-}
-
-impl FromStr for Version {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let numbers: Vec<&str> = s.trim_matches('v').split('.').collect();
-        let (major, minor, patch) = if numbers.len() == 3 {
-            (numbers[0], numbers[1], numbers[2])
-        } else if numbers.len() == 2 {
-            (numbers[0], numbers[1], "0")
+        if let Some(prerelease) = &self.prerelease {
+            write!(
+                f,
+                "{}.{}.{}-{}",
+                self.major, self.minor, self.patch, prerelease
+            )
         } else {
-            return Err(Error::UnsupportedVersion);
-        };
-
-        Ok(Version {
-            major: u32::from_str(major).map_err(|_| Error::UnsupportedVersion)?,
-            minor: u32::from_str(minor).map_err(|_| Error::UnsupportedVersion)?,
-            patch: u32::from_str(patch).map_err(|_| Error::UnsupportedVersion)?,
-        })
+            write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+        }
     }
 }
 

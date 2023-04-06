@@ -23,11 +23,11 @@ use ledger_bitcoin_client::{
     apdu::{APDUCommand, StatusWord},
     async_client::{BitcoinClient, Transport},
     error::BitcoinClientError,
-    wallet::Version,
+    wallet::Version as WalletVersion,
     WalletPolicy, WalletPubKey,
 };
 
-use super::{DeviceKind, Error as HWIError, HWI};
+use super::{DeviceKind, Error as HWIError, Version, HWI};
 
 pub struct Ledger<T: Transport> {
     client: BitcoinClient<T>,
@@ -43,7 +43,7 @@ impl<T: Transport> Ledger<T> {
         hmac: Option<[u8; 32]>,
     ) -> Result<(), HWIError> {
         let (descriptor_template, keys) = extract_keys_and_template(policy)?;
-        let wallet = WalletPolicy::new(name.into(), Version::V2, descriptor_template, keys);
+        let wallet = WalletPolicy::new(name.into(), WalletVersion::V2, descriptor_template, keys);
         self.wallet = Some((wallet, hmac));
         Ok(())
     }
@@ -70,7 +70,7 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
 
     async fn get_version(&self) -> Result<super::Version, HWIError> {
         let (_, version, _) = self.client.get_version().await?;
-        Ok(super::Version::from_str(&version)?)
+        Ok(extract_version(&version)?)
     }
 
     async fn is_connected(&self) -> Result<(), HWIError> {
@@ -96,7 +96,12 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
         policy: &str,
     ) -> Result<Option<[u8; 32]>, HWIError> {
         let (descriptor_template, keys) = extract_keys_and_template(policy)?;
-        let wallet = WalletPolicy::new(name.to_string(), Version::V2, descriptor_template, keys);
+        let wallet = WalletPolicy::new(
+            name.to_string(),
+            WalletVersion::V2,
+            descriptor_template,
+            keys,
+        );
         let (_id, hmac) = self.client.register_wallet(&wallet).await?;
         Ok(Some(hmac))
     }
@@ -132,6 +137,36 @@ pub fn extract_keys_and_template(policy: &str) -> Result<(String, Vec<WalletPubK
         Ok((descriptor_template.to_string(), pubkeys))
     } else {
         Ok((descriptor_template, pubkeys))
+    }
+}
+
+pub fn extract_version(s: &str) -> Result<Version, HWIError> {
+    // Regex from https://semver.org/ with patch group marked as optional
+    let re = Regex::new(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$").unwrap();
+    if let Some(captures) = re.captures(s.trim_start_matches('v')) {
+        let major = if let Some(s) = captures.get(1) {
+            u32::from_str(s.as_str()).map_err(|_| HWIError::UnsupportedVersion)?
+        } else {
+            0
+        };
+        let minor = if let Some(s) = captures.get(2) {
+            u32::from_str(s.as_str()).map_err(|_| HWIError::UnsupportedVersion)?
+        } else {
+            0
+        };
+        let patch = if let Some(s) = captures.get(3) {
+            u32::from_str(s.as_str()).map_err(|_| HWIError::UnsupportedVersion)?
+        } else {
+            0
+        };
+        Ok(Version {
+            major,
+            minor,
+            patch,
+            prerelease: captures.get(4).map(|s| s.as_str().to_string()),
+        })
+    } else {
+        Err(HWIError::UnsupportedVersion)
     }
 }
 
@@ -261,5 +296,49 @@ mod tests {
         assert_eq!(res.1.len(), 2);
         assert_eq!(res.1[0].to_string(), "[f5acc2fd/49'/1'/0']tpubDCbK3Ysvk8HjcF6mPyrgMu3KgLiaaP19RjKpNezd8GrbAbNg6v5BtWLaCt8FNm6QkLseopKLf5MNYQFtochDTKHdfgG6iqJ8cqnLNAwtXuP".to_string());
         assert_eq!(res.1[1].to_string(), "tpubDDtb2WPYwEWw2WWDV7reLV348iJHw2HmhzvPysKKrJw3hYmvrd4jasyoioVPdKGQqjyaBMEvTn1HvHWDSVqQ6amyyxRZ5YjpPBBGjJ8yu8S".to_string());
+    }
+    #[test]
+    fn test_extract_version() {
+        let test_cases = [
+            (
+                "v2.1.0",
+                Version {
+                    major: 2,
+                    minor: 1,
+                    patch: 0,
+                    prerelease: None,
+                },
+            ),
+            (
+                "v1.0",
+                Version {
+                    major: 1,
+                    minor: 0,
+                    patch: 0,
+                    prerelease: None,
+                },
+            ),
+            (
+                "3.0-rc2",
+                Version {
+                    major: 3,
+                    minor: 0,
+                    patch: 0,
+                    prerelease: Some("rc2".to_string()),
+                },
+            ),
+            (
+                "0.1.0-ALPHA",
+                Version {
+                    major: 0,
+                    minor: 1,
+                    patch: 0,
+                    prerelease: Some("ALPHA".to_string()),
+                },
+            ),
+        ];
+        for (s, v) in test_cases {
+            assert_eq!(v, extract_version(s).unwrap());
+        }
     }
 }
