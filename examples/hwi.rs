@@ -37,8 +37,10 @@ pub async fn list_hardware_wallets() -> Vec<Box<dyn HWI + Send>> {
     }
 
     #[cfg(feature = "specter")]
-    if let Ok(device) = Specter::try_connect_serial().await {
-        hws.push(device.into());
+    if let Ok(devices) = Specter::enumerate().await {
+        for device in devices {
+            hws.push(device.into());
+        }
     }
 
     #[cfg(feature = "ledger")]

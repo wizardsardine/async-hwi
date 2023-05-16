@@ -91,8 +91,15 @@ impl<T: Transport + Sync + Send> HWI for Specter<T> {
     }
 
     async fn is_connected(&self) -> Result<(), HWIError> {
-        self.fingerprint().await?;
-        Ok(())
+        if let Err(e) =
+            tokio::time::timeout(std::time::Duration::from_millis(500), self.fingerprint())
+                .await
+                .map_err(|_| HWIError::DeviceNotFound)?
+        {
+            Err(HWIError::from(e))
+        } else {
+            Ok(())
+        }
     }
 
     async fn get_master_fingerprint(&self) -> Result<Fingerprint, HWIError> {
@@ -217,40 +224,49 @@ impl SpecterSimulator {
 }
 
 impl Specter<SerialTransport> {
-    pub async fn try_connect_serial() -> Result<Self, HWIError> {
-        let s = Specter {
-            transport: SerialTransport {},
-            kind: DeviceKind::Specter,
-        };
-        s.is_connected().await?;
-        Ok(s)
+    pub async fn enumerate() -> Result<Vec<Self>, SpecterError> {
+        let mut res = Vec::new();
+        for port_name in SerialTransport::enumerate_potential_ports()? {
+            let transport = SerialTransport { port_name };
+            let specter = Specter {
+                transport,
+                kind: DeviceKind::Specter,
+            };
+            if specter.is_connected().await.is_ok() {
+                res.push(specter);
+            }
+        }
+        Ok(res)
     }
 }
 
 #[derive(Debug)]
-pub struct SerialTransport;
+pub struct SerialTransport {
+    port_name: String,
+}
+
 impl SerialTransport {
     pub const SPECTER_VID: u16 = 61525;
     pub const SPECTER_PID: u16 = 38914;
 
-    pub fn get_serial_port() -> Result<String, SpecterError> {
+    pub fn enumerate_potential_ports() -> Result<Vec<String>, SpecterError> {
         match available_ports() {
-            Ok(ports) => ports
-                .iter()
-                .find_map(|p| {
-                    if let SerialPortType::UsbPort(info) = &p.port_type {
+            Ok(ports) => Ok(ports
+                .into_iter()
+                .filter_map(|p| match p.port_type {
+                    SerialPortType::PciPort => Some(p.port_name),
+                    SerialPortType::UsbPort(info) => {
                         if info.vid == SerialTransport::SPECTER_VID
                             && info.pid == SerialTransport::SPECTER_PID
                         {
-                            Some(p.port_name.clone())
+                            Some(p.port_name)
                         } else {
                             None
                         }
-                    } else {
-                        None
                     }
+                    _ => None,
                 })
-                .ok_or(SpecterError::DeviceNotFound),
+                .collect()),
             Err(e) => Err(SpecterError::Device(format!(
                 "Error listing serial ports: {}",
                 e
@@ -262,8 +278,7 @@ impl SerialTransport {
 #[async_trait]
 impl Transport for SerialTransport {
     async fn request(&self, req: &str) -> Result<String, SpecterError> {
-        let tty = Self::get_serial_port()?;
-        let mut transport = tokio_serial::new(tty, 9600)
+        let mut transport = tokio_serial::new(self.port_name.clone(), 9600)
             .open_native_async()
             .map_err(|e| SpecterError::Device(e.to_string()))?;
         exchange(&mut transport, req).await
