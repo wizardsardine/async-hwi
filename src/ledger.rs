@@ -10,7 +10,6 @@ use bitcoin::util::{
 };
 use regex::Regex;
 
-pub use hidapi::{DeviceInfo, HidApi};
 use ledger_apdu::APDUAnswer;
 use ledger_transport_hid::TransportNativeHID;
 use tokio::{
@@ -21,13 +20,16 @@ use tokio::{
 
 use ledger_bitcoin_client::{
     apdu::{APDUCommand, StatusWord},
-    async_client::{BitcoinClient, Transport},
+    async_client::BitcoinClient,
     error::BitcoinClientError,
     wallet::Version as WalletVersion,
     WalletPolicy, WalletPubKey,
 };
 
 use super::{DeviceKind, Error as HWIError, Version, HWI};
+
+pub use hidapi::{DeviceInfo, HidApi};
+pub use ledger_bitcoin_client::async_client::Transport;
 
 pub struct Ledger<T: Transport> {
     client: BitcoinClient<T>,
