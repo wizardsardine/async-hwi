@@ -26,5 +26,5 @@ pub trait HWI: Debug {
 | name                                                    | App version |
 |---------------------------------------------------------|-------------|
 | [Specter](https://github.com/cryptoadvance/specter-diy) | v1.8.0      |
-| [Ledger](https://github.com/LedgerHQ/app-bitcoin-new)   | v2.1.0      |
+| [Ledger](https://github.com/LedgerHQ/app-bitcoin-new)   | v2.1.2      |
 
