@@ -106,11 +106,7 @@ impl<T: Transport + Sync + Send> HWI for Specter<T> {
         Ok(self.fingerprint().await?)
     }
 
-    async fn get_extended_pubkey(
-        &self,
-        path: &DerivationPath,
-        _display: bool,
-    ) -> Result<ExtendedPubKey, HWIError> {
+    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, HWIError> {
         Ok(self.get_extended_pubkey(path).await?)
     }
 
