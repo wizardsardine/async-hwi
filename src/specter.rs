@@ -70,10 +70,10 @@ impl<T: Transport> Specter<T> {
         self.transport
             .request(&format!(
                 "\r\n\r\nsign {}\r\n",
-                base64::encode(&encode::serialize(&psbt))
+                base64::encode(encode::serialize(&psbt))
             ))
             .await
-            .and_then(|resp| base64::decode(&resp).map_err(|e| SpecterError::Device(e.to_string())))
+            .and_then(|resp| base64::decode(resp).map_err(|e| SpecterError::Device(e.to_string())))
             .and_then(|bytes| {
                 encode::deserialize(&bytes).map_err(|e| SpecterError::Device(e.to_string()))
             })
