@@ -2,6 +2,8 @@
 pub mod ledger;
 #[cfg(feature = "specter")]
 pub mod specter;
+#[cfg(feature = "trezor")]
+pub mod trezor;
 
 use async_trait::async_trait;
 use bitcoin::{
@@ -85,6 +87,8 @@ pub enum DeviceKind {
     SpecterSimulator,
     Ledger,
     LedgerSimulator,
+    Trezor,
+    TrezorSimulator,
 }
 
 impl std::fmt::Display for DeviceKind {
@@ -94,6 +98,8 @@ impl std::fmt::Display for DeviceKind {
             DeviceKind::SpecterSimulator => write!(f, "specter-simulator"),
             DeviceKind::Ledger => write!(f, "ledger"),
             DeviceKind::LedgerSimulator => write!(f, "ledger-simulator"),
+            DeviceKind::Trezor => write!(f, "trezor"),
+            DeviceKind::TrezorSimulator => write!(f, "trezor-simulator"),
         }
     }
 }
@@ -107,6 +113,8 @@ impl std::str::FromStr for DeviceKind {
             "specter-simulator" => Ok(DeviceKind::SpecterSimulator),
             "ledger" => Ok(DeviceKind::Ledger),
             "ledger-simulator" => Ok(DeviceKind::LedgerSimulator),
+            "trezor" => Ok(DeviceKind::Trezor),
+            "trezor-simulator" => Ok(DeviceKind::TrezorSimulator),
             _ => Err(()),
         }
     }

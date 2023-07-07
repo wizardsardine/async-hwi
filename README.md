@@ -27,4 +27,5 @@ pub trait HWI: Debug {
 |---------------------------------------------------------|-------------|
 | [Specter](https://github.com/cryptoadvance/specter-diy) | v1.8.0      |
 | [Ledger](https://github.com/LedgerHQ/app-bitcoin-new)   | v2.1.2      |
+| [Trezor](https://github.com/trezor/trezor-firmware)     | all         |
 

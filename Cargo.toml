@@ -9,7 +9,8 @@ repository = "https://github.com/revault/async-hwi"
 keywords = ["bitcoin"]
 
 [features]
-default = ["ledger", "specter"]
+default = ["ledger", "specter", "trezor"]
+trezor = ["trezor-client"]
 specter = ["tokio", "tokio-serial", "serialport"]
 ledger = ["regex", "tokio", "ledger_bitcoin_client", "ledger-apdu", "ledger-transport-hid", "hidapi"]
 
@@ -32,6 +33,9 @@ ledger_bitcoin_client = { version = "0.3.1", optional = true }
 ledger-apdu = { version = "0.10", optional = true }
 ledger-transport-hid = { version = "0.10", optional = true }
 hidapi = { version = "1.4.1", features = ["linux-static-hidraw"], default-features = false, optional = true }
+
+# trezor
+trezor-client = { version = "0.1.2", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.21", features = ["macros", "net", "rt", "rt-multi-thread", "io-util", "sync"] }
