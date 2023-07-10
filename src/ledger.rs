@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::default::Default;
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
@@ -31,23 +32,34 @@ use super::{DeviceKind, Error as HWIError, Version, HWI};
 pub use hidapi::{DeviceInfo, HidApi};
 pub use ledger_bitcoin_client::async_client::Transport;
 
+#[derive(Default)]
+struct CommandOptions {
+    wallet: Option<(WalletPolicy, Option<[u8; 32]>)>,
+    display_xpub: bool,
+}
+
 pub struct Ledger<T: Transport> {
     client: BitcoinClient<T>,
-    wallet: Option<(WalletPolicy, Option<[u8; 32]>)>,
+    options: CommandOptions,
     kind: DeviceKind,
 }
 
 impl<T: Transport> Ledger<T> {
-    pub fn load_wallet(
-        &mut self,
+    pub fn display_xpub(mut self, display: bool) -> Result<Self, HWIError> {
+        self.options.display_xpub = display;
+        Ok(self)
+    }
+
+    pub fn with_wallet(
+        mut self,
         name: impl Into<String>,
         policy: &str,
         hmac: Option<[u8; 32]>,
-    ) -> Result<(), HWIError> {
+    ) -> Result<Self, HWIError> {
         let (descriptor_template, keys) = extract_keys_and_template(policy)?;
         let wallet = WalletPolicy::new(name.into(), WalletVersion::V2, descriptor_template, keys);
-        self.wallet = Some((wallet, hmac));
-        Ok(())
+        self.options.wallet = Some((wallet, hmac));
+        Ok(self)
     }
 }
 
@@ -84,12 +96,11 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
         Ok(self.client.get_master_fingerprint().await?)
     }
 
-    async fn get_extended_pubkey(
-        &self,
-        path: &DerivationPath,
-        display: bool,
-    ) -> Result<ExtendedPubKey, HWIError> {
-        Ok(self.client.get_extended_pubkey(path, display).await?)
+    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, HWIError> {
+        Ok(self
+            .client
+            .get_extended_pubkey(path, self.options.display_xpub)
+            .await?)
     }
 
     async fn register_wallet(
@@ -109,7 +120,7 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
     }
 
     async fn sign_tx(&self, psbt: &mut Psbt) -> Result<(), HWIError> {
-        if let Some((policy, hmac)) = &self.wallet {
+        if let Some((policy, hmac)) = &self.options.wallet {
             let sigs = self.client.sign_psbt(psbt, policy, hmac.as_ref()).await?;
             for (i, key, sig) in sigs {
                 let input = psbt.inputs.get_mut(i).ok_or(HWIError::DeviceDidNotSign)?;
@@ -182,7 +193,7 @@ impl Ledger<TransportHID> {
             TransportNativeHID::open_device(api, device).map_err(|_| HWIError::DeviceNotFound)?;
         Ok(Ledger {
             client: BitcoinClient::new(TransportHID(hid)),
-            wallet: None,
+            options: CommandOptions::default(),
             kind: DeviceKind::Ledger,
         })
     }
@@ -192,7 +203,7 @@ impl Ledger<TransportHID> {
             .map_err(|_| HWIError::DeviceNotFound)?;
         Ok(Ledger {
             client: BitcoinClient::new(TransportHID(hid)),
-            wallet: None,
+            options: CommandOptions::default(),
             kind: DeviceKind::Ledger,
         })
     }
@@ -232,7 +243,7 @@ impl LedgerSimulator {
             .map_err(|_| HWIError::DeviceNotFound)?;
         Ok(Ledger {
             client: BitcoinClient::new(transport),
-            wallet: None,
+            options: CommandOptions::default(),
             kind: DeviceKind::LedgerSimulator,
         })
     }
