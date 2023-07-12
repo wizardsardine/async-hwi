@@ -5,10 +5,11 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 
 use async_trait::async_trait;
-use bitcoin::util::{
+use bitcoin::{
     bip32::{DerivationPath, ExtendedPubKey, Fingerprint},
     psbt::Psbt,
 };
+use ledger_bitcoin_client::psbt::PartialSignature;
 use regex::Regex;
 
 use ledger_apdu::APDUAnswer;
@@ -122,9 +123,19 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
     async fn sign_tx(&self, psbt: &mut Psbt) -> Result<(), HWIError> {
         if let Some((policy, hmac)) = &self.options.wallet {
             let sigs = self.client.sign_psbt(psbt, policy, hmac.as_ref()).await?;
-            for (i, key, sig) in sigs {
+            for (i, sig) in sigs {
                 let input = psbt.inputs.get_mut(i).ok_or(HWIError::DeviceDidNotSign)?;
-                input.partial_sigs.insert(key, sig);
+                match sig {
+                    PartialSignature::Sig(key, sig) => {
+                        input.partial_sigs.insert(key, sig);
+                    }
+                    PartialSignature::TapScriptSig(key, Some(tapleaf_hash), sig) => {
+                        input.tap_script_sigs.insert((key, tapleaf_hash), sig);
+                    }
+                    PartialSignature::TapScriptSig(_, None, sig) => {
+                        input.tap_key_sig = Some(sig);
+                    }
+                }
             }
             Ok(())
         } else {
