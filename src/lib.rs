@@ -4,7 +4,7 @@ pub mod ledger;
 pub mod specter;
 
 use async_trait::async_trait;
-use bitcoin::util::{
+use bitcoin::{
     bip32::{DerivationPath, ExtendedPubKey, Fingerprint},
     psbt::PartiallySignedTransaction as Psbt,
 };

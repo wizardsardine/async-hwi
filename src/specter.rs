@@ -2,9 +2,8 @@ use std::fmt::Debug;
 use std::str::FromStr;
 
 use bitcoin::{
-    consensus::encode,
-    util::bip32::{DerivationPath, ExtendedPubKey, Fingerprint},
-    util::psbt::PartiallySignedTransaction as Psbt,
+    bip32::{DerivationPath, ExtendedPubKey, Fingerprint},
+    psbt::PartiallySignedTransaction as Psbt,
 };
 
 use serialport::{available_ports, SerialPortType};
@@ -70,12 +69,12 @@ impl<T: Transport> Specter<T> {
         self.transport
             .request(&format!(
                 "\r\n\r\nsign {}\r\n",
-                base64::encode(encode::serialize(&psbt))
+                base64::encode(psbt.serialize())
             ))
             .await
             .and_then(|resp| base64::decode(resp).map_err(|e| SpecterError::Device(e.to_string())))
             .and_then(|bytes| {
-                encode::deserialize(&bytes).map_err(|e| SpecterError::Device(e.to_string()))
+                Psbt::deserialize(&bytes).map_err(|e| SpecterError::Device(e.to_string()))
             })
     }
 }
