@@ -150,9 +150,11 @@ pub fn extract_keys_and_template(policy: &str) -> Result<(String, Vec<WalletPubK
     let mut descriptor_template = policy.to_string();
     let mut pubkeys: Vec<WalletPubKey> = Vec::new();
     for (index, capture) in re.find_iter(policy).enumerate() {
-        pubkeys.push(
-            WalletPubKey::from_str(capture.as_str()).map_err(|_| HWIError::UnsupportedInput)?,
-        );
+        let pubkey =
+            WalletPubKey::from_str(capture.as_str()).map_err(|_| HWIError::UnsupportedInput)?;
+        if !pubkeys.contains(&pubkey) {
+            pubkeys.push(pubkey);
+        }
         descriptor_template = descriptor_template.replace(capture.as_str(), &format!("@{}", index));
     }
 
