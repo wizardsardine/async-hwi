@@ -1,3 +1,5 @@
+#[cfg(feature = "bitbox")]
+pub mod bitbox;
 #[cfg(feature = "ledger")]
 pub mod ledger;
 #[cfg(feature = "specter")]
@@ -15,6 +17,7 @@ use std::fmt::Debug;
 pub enum Error {
     UnsupportedVersion,
     UnsupportedInput,
+    InvalidParameter(&'static str, String),
     UnimplementedMethod,
     DeviceDisconnected,
     DeviceNotFound,
@@ -32,6 +35,7 @@ impl std::fmt::Display for Error {
             Error::DeviceNotFound => write!(f, "Device not found"),
             Error::DeviceDidNotSign => write!(f, "Device did not sign"),
             Error::Device(e) => write!(f, "{}", e),
+            Error::InvalidParameter(param, e) => write!(f, "Invalid parameter {}: {}", param, e),
         }
     }
 }
@@ -81,6 +85,7 @@ impl std::fmt::Display for Version {
 /// If it is talking like a Duck© hardware wallet it is a Duck© hardware wallet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceKind {
+    BitBox02,
     Specter,
     SpecterSimulator,
     Ledger,
@@ -90,6 +95,7 @@ pub enum DeviceKind {
 impl std::fmt::Display for DeviceKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            DeviceKind::BitBox02 => write!(f, "bitbox02"),
             DeviceKind::Specter => write!(f, "specter"),
             DeviceKind::SpecterSimulator => write!(f, "specter-simulator"),
             DeviceKind::Ledger => write!(f, "ledger"),
@@ -103,6 +109,7 @@ impl std::str::FromStr for DeviceKind {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
+            "bitbox02" => Ok(DeviceKind::BitBox02),
             "specter" => Ok(DeviceKind::Specter),
             "specter-simulator" => Ok(DeviceKind::SpecterSimulator),
             "ledger" => Ok(DeviceKind::Ledger),
