@@ -17,6 +17,7 @@
 //!  ```
 
 use std::{
+    collections::HashMap,
     str::FromStr,
     sync::{Arc, Mutex},
 };
@@ -24,7 +25,9 @@ use std::{
 use async_trait::async_trait;
 use bitcoin::{
     bip32::{DerivationPath, ExtendedPubKey, Fingerprint},
+    ecdsa,
     psbt::Psbt,
+    PublicKey,
 };
 use trezor_client::{Trezor, TrezorResponse};
 
@@ -145,7 +148,7 @@ impl HWI for TrezorClient {
 
     async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, Error> {
         let path = DerivationPath::from_str(&path.to_string())
-            .map_err(|e| Error::Device(format!("{:#?}", e)))?;
+            .map_err(|e| Error::Device(format!("{:?}", e)))?;
         match self.client.lock().unwrap().get_public_key(
             &path,
             trezor_client::InputScriptType::SPENDADDRESS,
@@ -164,14 +167,61 @@ impl HWI for TrezorClient {
     }
 
     async fn sign_tx(&self, tx: &mut Psbt) -> Result<(), Error> {
+        let master_fp = self.get_master_fingerprint().await?;
+        let mut signatures = HashMap::new();
         let mut client = self.client.lock().unwrap();
-        let data = client.sign_tx(tx, self.network)?;
-        if let TrezorResponse::Ok(progress) = data {
-            if progress.has_signature() {
-                return Ok(());
+        let mut result = client.sign_tx(tx, self.network)?;
+
+        // TODO: make this loop more elegant
+        // This could be done asynchrnously
+        loop {
+            match result {
+                TrezorResponse::Ok(progress) => {
+                    if progress.has_signature() {
+                        let (index, signature) = progress.get_signature().unwrap();
+                        let mut signature = signature.to_vec();
+                        // TODO: add support for multisig
+                        signature.push(0x01); // Signature type
+                        if signatures.contains_key(&index) {
+                            return Err(Error::Device(format!(
+                                "Signature for index {} already filled",
+                                index
+                            )));
+                        }
+                        let val = ecdsa::Signature::from_slice(&signature)
+                            .map_err(|e| Error::Device(format!("{:?}", e)));
+                        signatures.insert(index, val?);
+                    }
+                    if progress.finished() {
+                        for (index, input) in tx.inputs.iter_mut().enumerate() {
+                            let signature = signatures.remove(&index).ok_or(Error::Device(
+                                format!("Signature for index {} not found", index),
+                            ))?;
+                            for pk in input.bip32_derivation.keys() {
+                                let fp = input.bip32_derivation.get(pk).unwrap().0;
+                                let pk = PublicKey::from_slice(pk.serialize().as_ref()).unwrap();
+                                if fp == master_fp {
+                                    input.partial_sigs.insert(pk, signature);
+                                    break;
+                                }
+                            }
+                        }
+                        return Ok(());
+                    } else {
+                        result = progress.ack_psbt(tx, self.network)?;
+                    }
+                }
+                TrezorResponse::Failure(f) => {
+                    return Err(Error::Device(f.to_string()));
+                }
+                TrezorResponse::ButtonRequest(req) => {
+                    result = req.ack()?;
+                }
+                _ => {
+                    return Err(Error::Device(result.to_string()));
+                }
             }
         }
-        return Err(Error::DeviceDidNotSign);
     }
 }
 
