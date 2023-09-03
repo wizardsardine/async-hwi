@@ -149,13 +149,20 @@ pub fn extract_keys_and_template(policy: &str) -> Result<(String, Vec<WalletPubK
     let re = Regex::new(r"((\[.+?\])?[xyYzZtuUvV]pub[1-9A-HJ-NP-Za-km-z]{79,108})").unwrap();
     let mut descriptor_template = policy.to_string();
     let mut pubkeys: Vec<WalletPubKey> = Vec::new();
-    for (index, capture) in re.find_iter(policy).enumerate() {
+    for capture in re.find_iter(policy) {
         let pubkey =
             WalletPubKey::from_str(capture.as_str()).map_err(|_| HWIError::UnsupportedInput)?;
-        if !pubkeys.contains(&pubkey) {
+        let pubkey_index = if !pubkeys.contains(&pubkey) {
             pubkeys.push(pubkey);
-        }
-        descriptor_template = descriptor_template.replace(capture.as_str(), &format!("@{}", index));
+            pubkeys.len() - 1
+        } else {
+            pubkeys
+                .iter()
+                .position(|p| p == &pubkey)
+                .expect("Just checked it's in.")
+        };
+        descriptor_template =
+            descriptor_template.replace(capture.as_str(), &format!("@{}", pubkey_index));
     }
 
     // Do not include the hash in the descriptor template.
@@ -322,7 +329,15 @@ mod tests {
         assert_eq!(res.1.len(), 2);
         assert_eq!(res.1[0].to_string(), "[f5acc2fd/49'/1'/0']tpubDCbK3Ysvk8HjcF6mPyrgMu3KgLiaaP19RjKpNezd8GrbAbNg6v5BtWLaCt8FNm6QkLseopKLf5MNYQFtochDTKHdfgG6iqJ8cqnLNAwtXuP".to_string());
         assert_eq!(res.1[1].to_string(), "tpubDDtb2WPYwEWw2WWDV7reLV348iJHw2HmhzvPysKKrJw3hYmvrd4jasyoioVPdKGQqjyaBMEvTn1HvHWDSVqQ6amyyxRZ5YjpPBBGjJ8yu8S".to_string());
+
+        let res = extract_keys_and_template("wsh(or_d(multi(2,[b0822927/48'/1'/0'/2']tpubDEvZxV86Br8Knbm9tWcr5Hvmg5cYTYsg92vinqH6Bie6U8ix8CsoN9W11NQygdqVwmHUJpsHXxNsi5gXn36g4xNfLWkMqPuFhRZAmMQ7jjQ/<0;1>/*,[7fc39c07/48'/1'/0'/2']tpubDEvjgXtrUuH3Qtkapny9aE8gN847xiXsf9MDM5XueGf9nrvStqAuBSva3ajGyTvtp8Ti55FvVXsgYSXuS1tQkBeopFuodx2hRUDmQbvKxbZ/<0;1>/*),and_v(v:thresh(2,pkh([b0822927/48'/1'/0'/2']tpubDEvZxV86Br8Knbm9tWcr5Hvmg5cYTYsg92vinqH6Bie6U8ix8CsoN9W11NQygdqVwmHUJpsHXxNsi5gXn36g4xNfLWkMqPuFhRZAmMQ7jjQ/<2;3>/*),a:pkh([7fc39c07/48'/1'/0'/2']tpubDEvjgXtrUuH3Qtkapny9aE8gN847xiXsf9MDM5XueGf9nrvStqAuBSva3ajGyTvtp8Ti55FvVXsgYSXuS1tQkBeopFuodx2hRUDmQbvKxbZ/<2;3>/*),a:pkh([1a1ffd98/48'/1'/0'/2']tpubDFZqzTvGijYb13BC73CkS1er8DrP5YdzMhziN3kWCKUFaW51Yj6ggvf99YpdrkTJy4RT85mxQMHXDiFAKRxzf6BykQgT4pRRBNPshSJJcKo/<0;1>/*)),older(300))))#wp0w3hlw").unwrap();
+        assert_eq!(res.0, "wsh(or_d(multi(2,@0/<0;1>/*,@1/<0;1>/*),and_v(v:thresh(2,pkh(@0/<2;3>/*),a:pkh(@1/<2;3>/*),a:pkh(@2/<0;1>/*)),older(300))))");
+        assert_eq!(res.1.len(), 3);
+        assert_eq!(res.1[0].to_string(), "[b0822927/48'/1'/0'/2']tpubDEvZxV86Br8Knbm9tWcr5Hvmg5cYTYsg92vinqH6Bie6U8ix8CsoN9W11NQygdqVwmHUJpsHXxNsi5gXn36g4xNfLWkMqPuFhRZAmMQ7jjQ".to_string());
+        assert_eq!(res.1[1].to_string(), "[7fc39c07/48'/1'/0'/2']tpubDEvjgXtrUuH3Qtkapny9aE8gN847xiXsf9MDM5XueGf9nrvStqAuBSva3ajGyTvtp8Ti55FvVXsgYSXuS1tQkBeopFuodx2hRUDmQbvKxbZ".to_string());
+        assert_eq!(res.1[2].to_string(), "[1a1ffd98/48'/1'/0'/2']tpubDFZqzTvGijYb13BC73CkS1er8DrP5YdzMhziN3kWCKUFaW51Yj6ggvf99YpdrkTJy4RT85mxQMHXDiFAKRxzf6BykQgT4pRRBNPshSJJcKo".to_string());
     }
+
     #[test]
     fn test_extract_version() {
         let test_cases = [
