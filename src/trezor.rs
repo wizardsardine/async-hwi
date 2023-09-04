@@ -133,7 +133,7 @@ impl HWI for TrezorClient {
         match self.client.lock().unwrap().get_public_key(
             &path,
             trezor_client::InputScriptType::SPENDADDRESS,
-            bitcoin::Network::Bitcoin,
+            self.network,
             false,
         ) {
             Ok(TrezorResponse::Ok(key)) => {
@@ -197,10 +197,9 @@ impl HWI for TrezorClient {
                             let signature = signatures.remove(&index).ok_or(Error::Device(
                                 format!("Signature for index {} not found", index),
                             ))?;
-                            for pk in input.bip32_derivation.keys() {
-                                let fp = input.bip32_derivation.get(pk).unwrap().0;
+                            for (pk, (fp, _)) in input.bip32_derivation.iter() {
                                 let pk = PublicKey::from_slice(pk.serialize().as_ref()).unwrap();
-                                if fp == master_fp {
+                                if fp.clone() == master_fp {
                                     input.partial_sigs.insert(pk, signature);
                                     break;
                                 }
