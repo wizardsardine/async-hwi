@@ -148,21 +148,18 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
 pub fn extract_keys_and_template(policy: &str) -> Result<(String, Vec<WalletPubKey>), HWIError> {
     let re = Regex::new(r"((\[.+?\])?[xyYzZtuUvV]pub[1-9A-HJ-NP-Za-km-z]{79,108})").unwrap();
     let mut descriptor_template = policy.to_string();
-    let mut pubkeys: Vec<WalletPubKey> = Vec::new();
+    let mut pubkeys_str: Vec<&str> = Vec::new();
     for capture in re.find_iter(policy) {
-        let pubkey =
-            WalletPubKey::from_str(capture.as_str()).map_err(|_| HWIError::UnsupportedInput)?;
-        let pubkey_index = if !pubkeys.contains(&pubkey) {
-            pubkeys.push(pubkey);
-            pubkeys.len() - 1
-        } else {
-            pubkeys
-                .iter()
-                .position(|p| p == &pubkey)
-                .expect("Just checked it's in.")
-        };
-        descriptor_template =
-            descriptor_template.replace(capture.as_str(), &format!("@{}", pubkey_index));
+        if !pubkeys_str.contains(&capture.as_str()) {
+            pubkeys_str.push(capture.as_str());
+        }
+    }
+
+    let mut pubkeys: Vec<WalletPubKey> = Vec::new();
+    for (i, key_str) in pubkeys_str.iter().enumerate() {
+        descriptor_template = descriptor_template.replace(key_str, &format!("@{}", i));
+        let pubkey = WalletPubKey::from_str(key_str).map_err(|_| HWIError::UnsupportedInput)?;
+        pubkeys.push(pubkey);
     }
 
     // Do not include the hash in the descriptor template.

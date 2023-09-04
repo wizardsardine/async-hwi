@@ -1,6 +1,6 @@
 [package]
 name = "async-hwi"
-version = "0.0.10"
+version = "0.0.11"
 edition = "2018"
 description = "Async hardware wallet interface"
 authors = ["Edouard Paris <m@edouard.paris>"]
