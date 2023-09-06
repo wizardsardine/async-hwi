@@ -5,7 +5,7 @@ edition = "2018"
 description = "Async hardware wallet interface"
 authors = ["Edouard Paris <m@edouard.paris>"]
 license-file = "LICENSE"
-repository = "https://github.com/revault/async-hwi"
+repository = "https://github.com/wizardsardine/async-hwi"
 keywords = ["bitcoin"]
 
 [features]
