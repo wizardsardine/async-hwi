@@ -199,7 +199,7 @@ impl HWI for TrezorClient {
                             ))?;
                             for (pk, (fp, _)) in input.bip32_derivation.iter() {
                                 let pk = PublicKey::from_slice(pk.serialize().as_ref()).unwrap();
-                                if fp.clone() == master_fp {
+                                if *fp == master_fp {
                                     input.partial_sigs.insert(pk, signature);
                                     break;
                                 }
