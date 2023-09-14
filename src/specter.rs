@@ -219,14 +219,17 @@ impl SpecterSimulator {
 }
 
 impl Specter<SerialTransport> {
+    pub fn new(port_name: String) -> Self {
+        let transport = SerialTransport { port_name };
+        Self {
+            transport,
+            kind: DeviceKind::Specter,
+        }
+    }
     pub async fn enumerate() -> Result<Vec<Self>, SpecterError> {
         let mut res = Vec::new();
         for port_name in SerialTransport::enumerate_potential_ports()? {
-            let transport = SerialTransport { port_name };
-            let specter = Specter {
-                transport,
-                kind: DeviceKind::Specter,
-            };
+            let specter = Specter::<SerialTransport>::new(port_name);
             if specter.is_connected().await.is_ok() {
                 res.push(specter);
             }
