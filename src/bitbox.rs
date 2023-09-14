@@ -8,11 +8,12 @@ use bitbox_api::{
     Keypath, PairedBitBox, PairingBitBox,
 };
 use bitcoin::{
-    bip32::{DerivationPath, ExtendedPubKey, Fingerprint},
+    bip32::{DerivationPath, ExtendedPubKey, Fingerprint, KeySource},
     psbt::Psbt,
+    secp256k1::PublicKey,
 };
 use regex::Regex;
-use std::str::FromStr;
+use std::{collections::BTreeMap, str::FromStr};
 
 pub use bitbox_api::{
     self as api,
@@ -188,6 +189,21 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
             } else {
                 None
             };
+
+        // Coldcard sign with the first bip32_derivation that matches its fingerprint.
+        // In order to to multiple round of signing the bip32_derivation of keys that
+        // signed the psbt must be removed then appended once the tx is signed.
+        let mut signed_bip32_derivations = Vec::<BTreeMap<PublicKey, KeySource>>::new();
+        for input in &mut psbt.inputs {
+            let mut signed_bip32_derivation = BTreeMap::new();
+            for key in input.partial_sigs.keys() {
+                if let Some(derivation) = input.bip32_derivation.remove(&key.inner) {
+                    signed_bip32_derivation.insert(key.inner, derivation);
+                }
+            }
+            signed_bip32_derivations.push(signed_bip32_derivation);
+        }
+
         self.client
             .btc_sign_psbt(
                 coin_from_network(self.network),
@@ -195,8 +211,13 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
                 policy,
                 pb::btc_sign_init_request::FormatUnit::Default,
             )
-            .await
-            .map_err(|e| e.into())
+            .await?;
+
+        for (i, derivations) in signed_bip32_derivations.iter_mut().enumerate() {
+            psbt.inputs[i].bip32_derivation.append(derivations);
+        }
+
+        Ok(())
     }
 }
 
