@@ -12,7 +12,7 @@ keywords = ["bitcoin"]
 default = ["ledger", "specter", "bitbox"]
 bitbox = ["tokio", "hidapi", "bitbox-api", "regex" ]
 specter = ["tokio", "tokio-serial", "serialport"]
-ledger = ["regex", "tokio", "ledger_bitcoin_client", "ledger-transport-hid", "ledger-apdu", "hidapi"]
+ledger = ["regex", "tokio", "ledger_bitcoin_client", "ledger-transport-hidapi", "ledger-apdu", "hidapi"]
 
 [dependencies]
 base64 = "0.13.0"
@@ -30,7 +30,7 @@ bitbox-api = { version = "0.1.1", default-features = false, features = ["usb", "
 # ledger
 ledger_bitcoin_client = { version = "0.3.2", optional = true }
 ledger-apdu = { version = "0.10", optional = true }
-ledger-transport-hid = { git = "https://github.com/edouardparis/ledger-rs", branch = "hidapi-2.4.1", optional = true }
+ledger-transport-hidapi = { version = "0.10.0", optional = true }
 
 #bitbox & ledger
 hidapi = { version = "2.4.1", features = ["linux-static-hidraw"], default-features = false, optional = true }
