@@ -13,7 +13,7 @@ use ledger_bitcoin_client::psbt::PartialSignature;
 use regex::Regex;
 
 use ledger_apdu::APDUAnswer;
-use ledger_transport_hid::TransportNativeHID;
+use ledger_transport_hidapi::TransportNativeHID;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
