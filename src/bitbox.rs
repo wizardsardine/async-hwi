@@ -13,30 +13,108 @@ use bitcoin::{
     secp256k1::PublicKey,
 };
 use regex::Regex;
-use std::{cmp::Ordering, collections::BTreeMap, str::FromStr};
+use std::{
+    cmp::Ordering,
+    collections::BTreeMap,
+    str::FromStr,
+    sync::{Arc, Mutex},
+};
 
 pub use bitbox_api::{
     self as api,
     runtime::Runtime,
     usb::{get_any_bitbox02, is_bitbox02},
+    ConfigError, NoiseConfig, NoiseConfigData, NoiseConfigNoCache,
 };
 
-pub struct WaitingConfirmBitbox<T: Runtime>(PairingBitBox<T>);
+#[derive(Clone)]
+struct Cache(Arc<Mutex<Option<NoiseConfigData>>>);
 
-impl<T: Runtime> WaitingConfirmBitbox<T> {
-    pub async fn connect(device: hidapi::HidDevice) -> Result<Self, HWIError> {
-        let noise_config = Box::new(bitbox_api::NoiseConfigNoCache {});
-        let bitbox = bitbox_api::BitBox::<T>::from_hid_device(device, noise_config).await?;
+impl bitbox_api::Threading for Cache {}
+
+impl NoiseConfig for Cache {
+    fn read_config(&self) -> Result<NoiseConfigData, ConfigError> {
+        let noise_data = self.0.lock().map_err(|e| ConfigError(e.to_string()))?;
+        if let Some(data) = noise_data.as_ref() {
+            Ok(data.clone())
+        } else {
+            Ok(NoiseConfigData::default())
+        }
+    }
+    fn store_config(&self, data: &NoiseConfigData) -> Result<(), ConfigError> {
+        let mut noise_data = self.0.lock().map_err(|e| ConfigError(e.to_string()))?;
+        *noise_data = Some(data.clone());
+        Ok(())
+    }
+}
+
+pub struct PairingBitbox02WithLocalCache<T: Runtime> {
+    client: PairingBitBox<T>,
+    local_cache: Cache,
+}
+
+impl<T: Runtime> PairingBitbox02WithLocalCache<T> {
+    pub async fn connect(
+        device: hidapi::HidDevice,
+        pairing_data: Option<NoiseConfigData>,
+    ) -> Result<Self, HWIError> {
+        let local_cache = if let Some(data) = pairing_data {
+            Cache(Arc::new(Mutex::new(Some(data))))
+        } else {
+            Cache(Arc::new(Mutex::new(None)))
+        };
+        let bitbox =
+            bitbox_api::BitBox::<T>::from_hid_device(device, Box::new(local_cache.clone())).await?;
         let pairing_bitbox = bitbox.unlock_and_pair().await?;
-        Ok(WaitingConfirmBitbox(pairing_bitbox))
+        Ok(PairingBitbox02WithLocalCache {
+            client: pairing_bitbox,
+            local_cache,
+        })
     }
 
     pub fn pairing_code(&self) -> Option<String> {
-        self.0.get_pairing_code()
+        self.client.get_pairing_code()
+    }
+
+    pub async fn wait_confirm(self) -> Result<(PairedBitBox<T>, NoiseConfigData), HWIError> {
+        let client = self.client.wait_confirm().await?;
+        let mut cache = self
+            .local_cache
+            .0
+            .lock()
+            .map_err(|e| HWIError::Device(e.to_string()))?;
+        Ok((
+            client,
+            cache
+                .take()
+                .expect("noise config data must be in local cache"),
+        ))
+    }
+}
+
+pub struct PairingBitbox02<T: Runtime> {
+    client: PairingBitBox<T>,
+}
+
+impl<T: Runtime> PairingBitbox02<T> {
+    pub async fn connect(
+        device: hidapi::HidDevice,
+        pairing: Option<Box<dyn NoiseConfig>>,
+    ) -> Result<Self, HWIError> {
+        let noise_config = pairing.unwrap_or_else(|| Box::new(NoiseConfigNoCache {}));
+        let bitbox = bitbox_api::BitBox::<T>::from_hid_device(device, noise_config).await?;
+        let pairing_bitbox = bitbox.unlock_and_pair().await?;
+        Ok(PairingBitbox02 {
+            client: pairing_bitbox,
+        })
+    }
+
+    pub fn pairing_code(&self) -> Option<String> {
+        self.client.get_pairing_code()
     }
 
     pub async fn wait_confirm(self) -> Result<PairedBitBox<T>, HWIError> {
-        self.0.wait_confirm().await.map_err(|e| e.into())
+        self.client.wait_confirm().await.map_err(|e| e.into())
     }
 }
 
