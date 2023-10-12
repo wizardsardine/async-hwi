@@ -13,30 +13,108 @@ use bitcoin::{
     secp256k1::PublicKey,
 };
 use regex::Regex;
-use std::{collections::BTreeMap, str::FromStr};
+use std::{
+    cmp::Ordering,
+    collections::BTreeMap,
+    str::FromStr,
+    sync::{Arc, Mutex},
+};
 
 pub use bitbox_api::{
     self as api,
     runtime::Runtime,
     usb::{get_any_bitbox02, is_bitbox02},
+    ConfigError, NoiseConfig, NoiseConfigData, NoiseConfigNoCache,
 };
 
-pub struct WaitingConfirmBitbox<T: Runtime>(PairingBitBox<T>);
+#[derive(Clone)]
+struct Cache(Arc<Mutex<Option<NoiseConfigData>>>);
 
-impl<T: Runtime> WaitingConfirmBitbox<T> {
-    pub async fn connect(device: hidapi::HidDevice) -> Result<Self, HWIError> {
-        let noise_config = Box::new(bitbox_api::NoiseConfigNoCache {});
-        let bitbox = bitbox_api::BitBox::<T>::from_hid_device(device, noise_config).await?;
+impl bitbox_api::Threading for Cache {}
+
+impl NoiseConfig for Cache {
+    fn read_config(&self) -> Result<NoiseConfigData, ConfigError> {
+        let noise_data = self.0.lock().map_err(|e| ConfigError(e.to_string()))?;
+        if let Some(data) = noise_data.as_ref() {
+            Ok(data.clone())
+        } else {
+            Ok(NoiseConfigData::default())
+        }
+    }
+    fn store_config(&self, data: &NoiseConfigData) -> Result<(), ConfigError> {
+        let mut noise_data = self.0.lock().map_err(|e| ConfigError(e.to_string()))?;
+        *noise_data = Some(data.clone());
+        Ok(())
+    }
+}
+
+pub struct PairingBitbox02WithLocalCache<T: Runtime> {
+    client: PairingBitBox<T>,
+    local_cache: Cache,
+}
+
+impl<T: Runtime> PairingBitbox02WithLocalCache<T> {
+    pub async fn connect(
+        device: hidapi::HidDevice,
+        pairing_data: Option<NoiseConfigData>,
+    ) -> Result<Self, HWIError> {
+        let local_cache = if let Some(data) = pairing_data {
+            Cache(Arc::new(Mutex::new(Some(data))))
+        } else {
+            Cache(Arc::new(Mutex::new(None)))
+        };
+        let bitbox =
+            bitbox_api::BitBox::<T>::from_hid_device(device, Box::new(local_cache.clone())).await?;
         let pairing_bitbox = bitbox.unlock_and_pair().await?;
-        Ok(WaitingConfirmBitbox(pairing_bitbox))
+        Ok(PairingBitbox02WithLocalCache {
+            client: pairing_bitbox,
+            local_cache,
+        })
     }
 
     pub fn pairing_code(&self) -> Option<String> {
-        self.0.get_pairing_code()
+        self.client.get_pairing_code()
+    }
+
+    pub async fn wait_confirm(self) -> Result<(PairedBitBox<T>, NoiseConfigData), HWIError> {
+        let client = self.client.wait_confirm().await?;
+        let mut cache = self
+            .local_cache
+            .0
+            .lock()
+            .map_err(|e| HWIError::Device(e.to_string()))?;
+        Ok((
+            client,
+            cache
+                .take()
+                .expect("noise config data must be in local cache"),
+        ))
+    }
+}
+
+pub struct PairingBitbox02<T: Runtime> {
+    client: PairingBitBox<T>,
+}
+
+impl<T: Runtime> PairingBitbox02<T> {
+    pub async fn connect(
+        device: hidapi::HidDevice,
+        pairing: Option<Box<dyn NoiseConfig>>,
+    ) -> Result<Self, HWIError> {
+        let noise_config = pairing.unwrap_or_else(|| Box::new(NoiseConfigNoCache {}));
+        let bitbox = bitbox_api::BitBox::<T>::from_hid_device(device, noise_config).await?;
+        let pairing_bitbox = bitbox.unlock_and_pair().await?;
+        Ok(PairingBitbox02 {
+            client: pairing_bitbox,
+        })
+    }
+
+    pub fn pairing_code(&self) -> Option<String> {
+        self.client.get_pairing_code()
     }
 
     pub async fn wait_confirm(self) -> Result<PairedBitBox<T>, HWIError> {
-        self.0.wait_confirm().await.map_err(|e| e.into())
+        self.client.wait_confirm().await.map_err(|e| e.into())
     }
 }
 
@@ -193,16 +271,12 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
         // Coldcard sign with the first bip32_derivation that matches its fingerprint.
         // In order to to multiple round of signing the bip32_derivation of keys that
         // signed the psbt must be removed then appended once the tx is signed.
-        let mut signed_bip32_derivations = Vec::<BTreeMap<PublicKey, KeySource>>::new();
-        for input in &mut psbt.inputs {
-            let mut signed_bip32_derivation = BTreeMap::new();
-            for key in input.partial_sigs.keys() {
-                if let Some(derivation) = input.bip32_derivation.remove(&key.inner) {
-                    signed_bip32_derivation.insert(key.inner, derivation);
-                }
-            }
-            signed_bip32_derivations.push(signed_bip32_derivation);
-        }
+        let mut signed_bip32_derivations = remove_derivations_of_keys_that_signed(psbt);
+        // Input may have multiple derivation with the same fingerprint and different derivation
+        // for example:
+        // Input A: fg/0/0, fg/1/0 and Input B fg/0/1, fg/1/1.
+        // We want for this first round of signature to have A: fg/0/0 and fg/0/1
+        let mut cousins_bip32_derivations = remove_same_fg_bip32_derivations(psbt);
 
         self.client
             .btc_sign_psbt(
@@ -213,12 +287,72 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
             )
             .await?;
 
-        for (i, derivations) in signed_bip32_derivations.iter_mut().enumerate() {
-            psbt.inputs[i].bip32_derivation.append(derivations);
+        for (i, input) in psbt.inputs.iter_mut().enumerate() {
+            input
+                .bip32_derivation
+                .append(&mut signed_bip32_derivations[i]);
+            input
+                .bip32_derivation
+                .append(&mut cousins_bip32_derivations[i]);
         }
 
         Ok(())
     }
+}
+
+fn remove_derivations_of_keys_that_signed(psbt: &mut Psbt) -> Vec<BTreeMap<PublicKey, KeySource>> {
+    let mut derivations = Vec::<BTreeMap<PublicKey, KeySource>>::new();
+    for input in &mut psbt.inputs {
+        let mut signed_bip32_derivation = BTreeMap::new();
+        for key in input.partial_sigs.keys() {
+            if let Some(derivation) = input.bip32_derivation.remove(&key.inner) {
+                signed_bip32_derivation.insert(key.inner, derivation);
+            }
+        }
+        derivations.push(signed_bip32_derivation);
+    }
+    derivations
+}
+
+fn remove_same_fg_bip32_derivations(psbt: &mut Psbt) -> Vec<BTreeMap<PublicKey, KeySource>> {
+    let mut removed_derivations = Vec::<BTreeMap<PublicKey, KeySource>>::new();
+    let mut priority_order = Vec::<KeySource>::new();
+    for input in &psbt.inputs {
+        for source in input.bip32_derivation.values() {
+            priority_order.push(source.clone());
+        }
+    }
+    priority_order.sort_by(|(fg1, path1), (fg2, path2)| match fg1.cmp(fg2) {
+        Ordering::Less => Ordering::Less,
+        Ordering::Greater => Ordering::Greater,
+        Ordering::Equal => path2.cmp(path1),
+    });
+
+    for input in &mut psbt.inputs {
+        let mut removed = BTreeMap::new();
+        let mut to_remove = Vec::<PublicKey>::new();
+        for (key1, source1) in &input.bip32_derivation {
+            for (key2, source2) in &input.bip32_derivation {
+                if source1.0 == source2.0 && source1.1 != source2.1 {
+                    if priority_order.iter().position(|s| s == source1)
+                        < priority_order.iter().position(|s| s == source2)
+                    {
+                        to_remove.push(*key2);
+                    } else {
+                        to_remove.push(*key1);
+                    }
+                }
+            }
+        }
+        for key in to_remove {
+            if let Some(derivation) = input.bip32_derivation.remove(&key) {
+                removed.insert(key, derivation);
+            }
+        }
+        removed_derivations.push(removed);
+    }
+
+    removed_derivations
 }
 
 fn coin_from_network(network: bitcoin::Network) -> pb::BtcCoin {
@@ -349,5 +483,17 @@ mod tests {
                 policy
             );
         }
+    }
+
+    #[test]
+    fn test_sort_bip32_derivations() {
+        let mut psbt = Psbt::from_str("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").unwrap();
+        assert_eq!(psbt.inputs[0].bip32_derivation.len(), 6);
+        assert_eq!(psbt.inputs[1].bip32_derivation.len(), 6);
+        let removed = remove_same_fg_bip32_derivations(&mut psbt);
+        assert_eq!(psbt.inputs[0].bip32_derivation.len(), 2);
+        assert_eq!(psbt.inputs[1].bip32_derivation.len(), 2);
+        assert_eq!(removed[0].len(), 4);
+        assert_eq!(removed[1].len(), 4);
     }
 }
