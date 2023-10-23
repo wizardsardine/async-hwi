@@ -67,15 +67,9 @@ impl<T: Transport> Specter<T> {
 
     pub async fn sign(&self, psbt: &Psbt) -> Result<Psbt, SpecterError> {
         self.transport
-            .request(&format!(
-                "\r\n\r\nsign {}\r\n",
-                base64::encode(psbt.serialize())
-            ))
+            .request(&format!("\r\n\r\nsign {}\r\n", psbt))
             .await
-            .and_then(|resp| base64::decode(resp).map_err(|e| SpecterError::Device(e.to_string())))
-            .and_then(|bytes| {
-                Psbt::deserialize(&bytes).map_err(|e| SpecterError::Device(e.to_string()))
-            })
+            .and_then(|resp| Psbt::from_str(&resp).map_err(|e| SpecterError::Device(e.to_string())))
     }
 }
 
