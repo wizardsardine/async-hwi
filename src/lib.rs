@@ -4,6 +4,7 @@ pub mod bitbox;
 pub mod ledger;
 #[cfg(feature = "specter")]
 pub mod specter;
+pub mod utils;
 
 use async_trait::async_trait;
 use bitcoin::{
