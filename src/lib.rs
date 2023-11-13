@@ -1,3 +1,4 @@
+pub mod bip389;
 #[cfg(feature = "bitbox")]
 pub mod bitbox;
 #[cfg(feature = "ledger")]
@@ -16,6 +17,8 @@ use std::fmt::Debug;
 
 #[derive(Debug, Clone)]
 pub enum Error {
+    ParsingPolicy(bip389::ParseError),
+    MissingPolicy,
     UnsupportedVersion,
     UnsupportedInput,
     InvalidParameter(&'static str, String),
@@ -29,6 +32,8 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            Error::ParsingPolicy(e) => write!(f, "{}", e),
+            Error::MissingPolicy => write!(f, "Missing policy"),
             Error::UnsupportedVersion => write!(f, "Unsupported version"),
             Error::UnsupportedInput => write!(f, "Unsupported input"),
             Error::UnimplementedMethod => write!(f, "Unimplemented method"),
@@ -38,6 +43,12 @@ impl std::fmt::Display for Error {
             Error::Device(e) => write!(f, "{}", e),
             Error::InvalidParameter(param, e) => write!(f, "Invalid parameter {}: {}", param, e),
         }
+    }
+}
+
+impl From<bip389::ParseError> for Error {
+    fn from(value: bip389::ParseError) -> Self {
+        Error::ParsingPolicy(value)
     }
 }
 
@@ -54,10 +65,20 @@ pub trait HWI: Debug {
     async fn get_master_fingerprint(&self) -> Result<Fingerprint, Error>;
     /// Get the xpub with the given derivation path.
     async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, Error>;
+    /// Display address
+    async fn display_address(&self, script: &AddressScript) -> Result<(), Error>;
     /// Register a new wallet policy
     async fn register_wallet(&self, name: &str, policy: &str) -> Result<Option<[u8; 32]>, Error>;
     /// Sign a partially signed bitcoin transaction (PSBT).
     async fn sign_tx(&self, tx: &mut Psbt) -> Result<(), Error>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AddressScript {
+    /// Must be bip86 path.
+    P2TR(DerivationPath),
+    ///Miniscript requires the policy loaded into the device
+    Miniscript { index: u32, change: bool },
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Default)]

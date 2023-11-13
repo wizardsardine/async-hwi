@@ -13,7 +13,7 @@ pub use tokio::net::TcpStream;
 use tokio_serial::SerialPortBuilderExt;
 pub use tokio_serial::SerialStream;
 
-use super::{DeviceKind, Error as HWIError, HWI};
+use super::{AddressScript, DeviceKind, Error as HWIError, HWI};
 use async_trait::async_trait;
 
 #[derive(Debug)]
@@ -95,6 +95,10 @@ impl<T: Transport + Sync + Send> HWI for Specter<T> {
 
     async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, HWIError> {
         Ok(self.get_extended_pubkey(path).await?)
+    }
+
+    async fn display_address(&self, _script: &AddressScript) -> Result<(), HWIError> {
+        Err(HWIError::UnimplementedMethod)
     }
 
     async fn register_wallet(

@@ -1,14 +1,15 @@
-use crate::{DeviceKind, Error as HWIError, HWI};
+use crate::{bip389, AddressScript, DeviceKind, Error as HWIError, HWI};
+use api::btc::make_script_config_simple;
 use async_trait::async_trait;
 use bitbox_api::{
     btc::KeyOriginInfo,
     error::Error,
-    pb::{self, btc_script_config::Policy, BtcScriptConfig},
+    pb::{self, BtcScriptConfig},
     usb::UsbError,
     Keypath, PairedBitBox, PairingBitBox,
 };
 use bitcoin::{
-    bip32::{DerivationPath, ExtendedPubKey, Fingerprint},
+    bip32::{ChildNumber, DerivationPath, ExtendedPubKey, Fingerprint},
     psbt::Psbt,
 };
 use regex::Regex;
@@ -119,7 +120,7 @@ pub struct BitBox02<T: Runtime> {
     pub network: bitcoin::Network,
     pub display_xpub: bool,
     pub client: PairedBitBox<T>,
-    pub policy: Option<pb::BtcScriptConfigWithKeypath>,
+    pub policy: Option<Policy>,
 }
 
 impl<T: Runtime> std::fmt::Debug for BitBox02<T> {
@@ -149,11 +150,7 @@ impl<T: Runtime> BitBox02<T> {
     }
 
     pub fn with_policy(mut self, policy: &str) -> Result<Self, HWIError> {
-        let script_config = Some(extract_script_config_policy(policy)?);
-        self.policy = Some(pb::BtcScriptConfigWithKeypath {
-            script_config,
-            keypath: Vec::new(),
-        });
+        self.policy = Some(extract_script_config_policy(policy)?);
         Ok(self)
     }
 
@@ -161,7 +158,7 @@ impl<T: Runtime> BitBox02<T> {
         let pb_network = coin_from_network(self.network);
         let policy = extract_script_config_policy(policy)?;
         self.client
-            .btc_is_script_config_registered(pb_network, &policy, None)
+            .btc_is_script_config_registered(pb_network, &policy.into(), None)
             .await
             .map_err(|e| e.into())
     }
@@ -208,6 +205,74 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
         Ok(ExtendedPubKey::from_str(&fg).map_err(|e| HWIError::Device(e.to_string()))?)
     }
 
+    async fn display_address(&self, script: &AddressScript) -> Result<(), HWIError> {
+        match script {
+            AddressScript::P2TR(path) => {
+                self.client
+                    .btc_address(
+                        if self.network == bitcoin::Network::Bitcoin {
+                            pb::BtcCoin::Btc
+                        } else {
+                            pb::BtcCoin::Tbtc
+                        },
+                        &Keypath::from(path),
+                        &make_script_config_simple(pb::btc_script_config::SimpleType::P2tr),
+                        true,
+                    )
+                    .await?;
+            }
+            AddressScript::Miniscript { index, change } => {
+                let policy = self.policy.clone().ok_or_else(|| HWIError::MissingPolicy)?;
+                let fg = self.get_master_fingerprint().await?;
+                let mut path = DerivationPath::master();
+                for (key_index, key) in policy.pubkeys.iter().enumerate() {
+                    if Some(fg) == key.master_fingerprint {
+                        if let Some(p) = &key.path {
+                            path = p.clone();
+                        }
+                        let (appended_path, wildcard) =
+                            extract_first_appended_derivation_with_some_wildcard(
+                                key_index,
+                                &policy.template,
+                            )?;
+                        if appended_path.len() >= 2 {
+                            path = path.extend(if *change {
+                                &appended_path[1]
+                            } else {
+                                &appended_path[0]
+                            });
+                        } else if !appended_path.is_empty() {
+                            path = path.extend(&appended_path[0]);
+                        }
+                        if wildcard == bip389::Wildcard::Hardened {
+                            let child = ChildNumber::from_hardened_idx(*index)
+                                .map_err(|_| HWIError::UnsupportedInput)?;
+                            path = path.extend([child]);
+                        } else if wildcard == bip389::Wildcard::Unhardened {
+                            let child = ChildNumber::from_normal_idx(*index)
+                                .map_err(|_| HWIError::UnsupportedInput)?;
+                            path = path.extend([child]);
+                        }
+                        break;
+                    }
+                }
+                self.client
+                    .btc_address(
+                        if self.network == bitcoin::Network::Bitcoin {
+                            pb::BtcCoin::Btc
+                        } else {
+                            pb::BtcCoin::Tbtc
+                        },
+                        &Keypath::from(&path),
+                        &policy.into(),
+                        true,
+                    )
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
     async fn register_wallet(
         &self,
         name: &str,
@@ -217,7 +282,7 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
         let policy = extract_script_config_policy(policy)?;
         if self
             .client
-            .btc_is_script_config_registered(pb_network, &policy, None)
+            .btc_is_script_config_registered(pb_network, &policy.clone().into(), None)
             .await?
         {
             return Ok(None);
@@ -225,7 +290,7 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
         self.client
             .btc_register_script_config(
                 pb_network,
-                &policy,
+                &policy.into(),
                 None,
                 pb::btc_register_script_config_request::XPubType::AutoXpubTpub,
                 Some(name),
@@ -240,25 +305,20 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
     /// and derivations collusion in case of multiple spending path per outputs.
     async fn sign_tx(&self, psbt: &mut Psbt) -> Result<(), HWIError> {
         let policy: Option<pb::BtcScriptConfigWithKeypath> =
-            if let Some(pb::BtcScriptConfigWithKeypath {
-                script_config,
-                mut keypath,
-            }) = self.policy.clone()
-            {
+            if let Some(policy) = self.policy.clone() {
+                let mut path = DerivationPath::master();
                 let fg = self.get_master_fingerprint().await?;
-                if let Some(pb::BtcScriptConfig {
-                    config: Some(pb::btc_script_config::Config::Policy(Policy { keys, .. })),
-                }) = &script_config
-                {
-                    for key in keys {
-                        if fg.as_bytes().to_vec() == key.root_fingerprint {
-                            keypath = key.keypath.clone();
+                for key in &policy.pubkeys {
+                    if Some(fg) == key.master_fingerprint {
+                        if let Some(p) = &key.path {
+                            path = p.clone();
+                            break;
                         }
                     }
                 }
                 Some(pb::BtcScriptConfigWithKeypath {
-                    script_config,
-                    keypath,
+                    script_config: Some(policy.into()),
+                    keypath: Keypath::from(&path).to_vec(),
                 })
             } else {
                 None
@@ -317,7 +377,7 @@ impl<T: Runtime + Sync + Send + 'static> From<BitBox02<T>>
     }
 }
 
-pub fn extract_script_config_policy(policy: &str) -> Result<BtcScriptConfig, HWIError> {
+pub fn extract_script_config_policy(policy: &str) -> Result<Policy, HWIError> {
     let re = Regex::new(r"((\[.+?\])?[xyYzZtuUvV]pub[1-9A-HJ-NP-Za-km-z]{79,108})").unwrap();
     let mut descriptor_template = policy.to_string();
     let mut pubkeys_str: Vec<&str> = Vec::new();
@@ -327,13 +387,13 @@ pub fn extract_script_config_policy(policy: &str) -> Result<BtcScriptConfig, HWI
         }
     }
 
-    let mut pubkeys: Vec<KeyOriginInfo> = Vec::new();
+    let mut pubkeys: Vec<KeyInfo> = Vec::new();
     for (i, key_str) in pubkeys_str.iter().enumerate() {
         descriptor_template = descriptor_template.replace(key_str, &format!("@{}", i));
         let pubkey = if let Ok(key) = ExtendedPubKey::from_str(key_str) {
-            KeyOriginInfo {
-                keypath: None,
-                root_fingerprint: None,
+            KeyInfo {
+                path: None,
+                master_fingerprint: None,
                 xpub: key,
             }
         } else {
@@ -354,11 +414,11 @@ pub fn extract_script_config_policy(policy: &str) -> Result<BtcScriptConfig, HWI
                     .map_err(|e| HWIError::InvalidParameter("policy", e.to_string()))?
             };
 
-            KeyOriginInfo {
+            KeyInfo {
                 xpub: ExtendedPubKey::from_str(xpub_str)
                     .map_err(|e| HWIError::InvalidParameter("policy", e.to_string()))?,
-                keypath: Some(Keypath::from(&derivation_path)),
-                root_fingerprint: Some(fingerprint),
+                path: Some(derivation_path),
+                master_fingerprint: Some(fingerprint),
             }
         };
         pubkeys.push(pubkey);
@@ -370,46 +430,137 @@ pub fn extract_script_config_policy(policy: &str) -> Result<BtcScriptConfig, HWI
         } else {
             &descriptor_template
         };
-    Ok(bitbox_api::btc::make_script_config_policy(
-        descriptor_template,
-        &pubkeys,
-    ))
+
+    //Ok(
+    Ok(Policy {
+        template: descriptor_template.to_string(),
+        pubkeys,
+    })
+}
+
+pub fn extract_first_appended_derivation_with_some_wildcard(
+    key_index: usize,
+    template: &str,
+) -> Result<(Vec<DerivationPath>, bip389::Wildcard), HWIError> {
+    let re = Regex::new(r"@\d+/[^,)]+").unwrap();
+    for capture in re.find_iter(template) {
+        if capture.as_str().contains(&format!("@{}", key_index)) {
+            if let Some((_, appended)) = capture.as_str().split_once('/') {
+                let (derivations, wildcard) = bip389::parse_xkey_deriv(appended)?;
+                if wildcard != bip389::Wildcard::None {
+                    return Ok((derivations, wildcard));
+                }
+            }
+        }
+    }
+    Ok((Vec::new(), bip389::Wildcard::None))
+}
+
+#[derive(Clone)]
+pub struct Policy {
+    template: String,
+    pubkeys: Vec<KeyInfo>,
+}
+
+impl From<Policy> for BtcScriptConfig {
+    fn from(p: Policy) -> BtcScriptConfig {
+        let keys: Vec<KeyOriginInfo> = p.pubkeys.into_iter().map(|k| k.into()).collect();
+        bitbox_api::btc::make_script_config_policy(&p.template, &keys)
+    }
+}
+
+#[derive(Clone)]
+pub struct KeyInfo {
+    xpub: ExtendedPubKey,
+    path: Option<DerivationPath>,
+    master_fingerprint: Option<Fingerprint>,
+}
+
+impl From<KeyInfo> for KeyOriginInfo {
+    fn from(info: KeyInfo) -> KeyOriginInfo {
+        KeyOriginInfo {
+            root_fingerprint: info.master_fingerprint,
+            keypath: info.path.as_ref().map(Keypath::from),
+            xpub: info.xpub,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use bitbox_api::pb::btc_script_config::Policy;
-
     use super::*;
 
     #[test]
     fn test_extract_keys_and_template() {
-        let res = extract_script_config_policy("wsh(or_d(pk([f5acc2fd/49'/1'/0']tpubDCbK3Ysvk8HjcF6mPyrgMu3KgLiaaP19RjKpNezd8GrbAbNg6v5BtWLaCt8FNm6QkLseopKLf5MNYQFtochDTKHdfgG6iqJ8cqnLNAwtXuP/**),and_v(v:pkh(tpubDDtb2WPYwEWw2WWDV7reLV348iJHw2HmhzvPysKKrJw3hYmvrd4jasyoioVPdKGQqjyaBMEvTn1HvHWDSVqQ6amyyxRZ5YjpPBBGjJ8yu8S/**),older(100))))").unwrap();
-        let config = res.config.unwrap();
-        assert!(matches!(
-            config,
-            bitbox_api::pb::btc_script_config::Config::Policy(_)
-        ));
-        if let bitbox_api::pb::btc_script_config::Config::Policy(Policy { policy, keys }) = config {
-            assert_eq!(2, keys.len());
-            assert_eq!(
-                "wsh(or_d(pk(@0/**),and_v(v:pkh(@1/**),older(100))))",
-                policy
-            );
-        }
+        let policy = extract_script_config_policy("wsh(or_d(pk([f5acc2fd/49'/1'/0']tpubDCbK3Ysvk8HjcF6mPyrgMu3KgLiaaP19RjKpNezd8GrbAbNg6v5BtWLaCt8FNm6QkLseopKLf5MNYQFtochDTKHdfgG6iqJ8cqnLNAwtXuP/**),and_v(v:pkh(tpubDDtb2WPYwEWw2WWDV7reLV348iJHw2HmhzvPysKKrJw3hYmvrd4jasyoioVPdKGQqjyaBMEvTn1HvHWDSVqQ6amyyxRZ5YjpPBBGjJ8yu8S/**),older(100))))").unwrap();
+        assert_eq!(2, policy.pubkeys.len());
+        assert_eq!(
+            "wsh(or_d(pk(@0/**),and_v(v:pkh(@1/**),older(100))))",
+            policy.template
+        );
 
-        let res = extract_script_config_policy("wsh(or_d(multi(2,[b0822927/48'/1'/0'/2']tpubDEvZxV86Br8Knbm9tWcr5Hvmg5cYTYsg92vinqH6Bie6U8ix8CsoN9W11NQygdqVwmHUJpsHXxNsi5gXn36g4xNfLWkMqPuFhRZAmMQ7jjQ/<0;1>/*,[7fc39c07/48'/1'/0'/2']tpubDEvjgXtrUuH3Qtkapny9aE8gN847xiXsf9MDM5XueGf9nrvStqAuBSva3ajGyTvtp8Ti55FvVXsgYSXuS1tQkBeopFuodx2hRUDmQbvKxbZ/<0;1>/*),and_v(v:thresh(2,pkh([b0822927/48'/1'/0'/2']tpubDEvZxV86Br8Knbm9tWcr5Hvmg5cYTYsg92vinqH6Bie6U8ix8CsoN9W11NQygdqVwmHUJpsHXxNsi5gXn36g4xNfLWkMqPuFhRZAmMQ7jjQ/<2;3>/*),a:pkh([7fc39c07/48'/1'/0'/2']tpubDEvjgXtrUuH3Qtkapny9aE8gN847xiXsf9MDM5XueGf9nrvStqAuBSva3ajGyTvtp8Ti55FvVXsgYSXuS1tQkBeopFuodx2hRUDmQbvKxbZ/<2;3>/*),a:pkh([1a1ffd98/48'/1'/0'/2']tpubDFZqzTvGijYb13BC73CkS1er8DrP5YdzMhziN3kWCKUFaW51Yj6ggvf99YpdrkTJy4RT85mxQMHXDiFAKRxzf6BykQgT4pRRBNPshSJJcKo/<0;1>/*)),older(300))))#wp0w3hlw").unwrap();
-        let config = res.config.unwrap();
-        assert!(matches!(
-            config,
-            bitbox_api::pb::btc_script_config::Config::Policy(_)
-        ));
-        if let bitbox_api::pb::btc_script_config::Config::Policy(Policy { policy, keys }) = config {
-            assert_eq!(3, keys.len());
-            assert_eq!(
+        let policy = extract_script_config_policy("wsh(or_d(multi(2,[b0822927/48'/1'/0'/2']tpubDEvZxV86Br8Knbm9tWcr5Hvmg5cYTYsg92vinqH6Bie6U8ix8CsoN9W11NQygdqVwmHUJpsHXxNsi5gXn36g4xNfLWkMqPuFhRZAmMQ7jjQ/<0;1>/*,[7fc39c07/48'/1'/0'/2']tpubDEvjgXtrUuH3Qtkapny9aE8gN847xiXsf9MDM5XueGf9nrvStqAuBSva3ajGyTvtp8Ti55FvVXsgYSXuS1tQkBeopFuodx2hRUDmQbvKxbZ/<0;1>/*),and_v(v:thresh(2,pkh([b0822927/48'/1'/0'/2']tpubDEvZxV86Br8Knbm9tWcr5Hvmg5cYTYsg92vinqH6Bie6U8ix8CsoN9W11NQygdqVwmHUJpsHXxNsi5gXn36g4xNfLWkMqPuFhRZAmMQ7jjQ/<2;3>/*),a:pkh([7fc39c07/48'/1'/0'/2']tpubDEvjgXtrUuH3Qtkapny9aE8gN847xiXsf9MDM5XueGf9nrvStqAuBSva3ajGyTvtp8Ti55FvVXsgYSXuS1tQkBeopFuodx2hRUDmQbvKxbZ/<2;3>/*),a:pkh([1a1ffd98/48'/1'/0'/2']tpubDFZqzTvGijYb13BC73CkS1er8DrP5YdzMhziN3kWCKUFaW51Yj6ggvf99YpdrkTJy4RT85mxQMHXDiFAKRxzf6BykQgT4pRRBNPshSJJcKo/<0;1>/*)),older(300))))#wp0w3hlw").unwrap();
+        assert_eq!(3, policy.pubkeys.len());
+        assert_eq!(
                 "wsh(or_d(multi(2,@0/<0;1>/*,@1/<0;1>/*),and_v(v:thresh(2,pkh(@0/<2;3>/*),a:pkh(@1/<2;3>/*),a:pkh(@2/<0;1>/*)),older(300))))",
-                policy
+                policy.template
             );
-        }
+    }
+
+    #[test]
+    fn test_extract_first_appended_derivation_with_some_wildcard() {
+        let (paths, wildcard) = extract_first_appended_derivation_with_some_wildcard(
+            1,
+            "wsh(or_d(pk(@0/**),and_v(v:pkh(@1/1/**),older(100))))",
+        )
+        .unwrap();
+        assert_eq!(wildcard, bip389::Wildcard::Unhardened);
+        assert_eq!(
+            paths,
+            vec![
+                DerivationPath::from_str("m/1/0").unwrap(),
+                DerivationPath::from_str("m/1/1").unwrap()
+            ],
+        );
+        let (paths, wildcard) = extract_first_appended_derivation_with_some_wildcard(
+            0,
+            "wsh(or_d(multi(2,@0/<8;9>/*,@1/<0;1>/*),and_v(v:thresh(2,pkh(@0/<2;3>/*),a:pkh(@1/<2;3>/*),a:pkh(@2/2/<3;4;5>/*)),older(300))))",
+        )
+        .unwrap();
+        assert_eq!(wildcard, bip389::Wildcard::Unhardened);
+        assert_eq!(
+            paths,
+            vec![
+                DerivationPath::from_str("m/8").unwrap(),
+                DerivationPath::from_str("m/9").unwrap(),
+            ],
+        );
+        let (paths, wildcard) = extract_first_appended_derivation_with_some_wildcard(
+            1,
+            "wsh(or_d(multi(2,@0/<8;9>/*,@1/<0;1>/*),and_v(v:thresh(2,pkh(@0/<2;3>/*),a:pkh(@1/<2;3>/*),a:pkh(@2/2/<3;4;5>/*)),older(300))))",
+        )
+        .unwrap();
+        assert_eq!(wildcard, bip389::Wildcard::Unhardened);
+        assert_eq!(
+            paths,
+            vec![
+                DerivationPath::from_str("m/0").unwrap(),
+                DerivationPath::from_str("m/1").unwrap(),
+            ],
+        );
+        let (paths, wildcard) = extract_first_appended_derivation_with_some_wildcard(
+            2,
+            "wsh(or_d(multi(2,@0/<0;1>/*,@1/<0;1>/*),and_v(v:thresh(2,pkh(@0/<2;3>/*),a:pkh(@1/<2;3>/*),a:pkh(@2/2/<3;4;5>/*)),older(300))))",
+        )
+        .unwrap();
+        assert_eq!(wildcard, bip389::Wildcard::Unhardened);
+        assert_eq!(
+            paths,
+            vec![
+                DerivationPath::from_str("m/2/3").unwrap(),
+                DerivationPath::from_str("m/2/4").unwrap(),
+                DerivationPath::from_str("m/2/5").unwrap()
+            ],
+        );
     }
 }

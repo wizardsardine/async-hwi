@@ -1,6 +1,10 @@
 use std::{cmp::Ordering, collections::BTreeMap};
 
-use bitcoin::{bip32::KeySource, psbt::Psbt, secp256k1::PublicKey};
+use bitcoin::{
+    bip32::{ChildNumber, DerivationPath, KeySource},
+    psbt::Psbt,
+    secp256k1::PublicKey,
+};
 
 use crate::{Error, HWI};
 
@@ -83,6 +87,24 @@ impl<'a> Bip32DerivationFilter<'a> {
         }
 
         Ok(())
+    }
+}
+
+pub fn bip86_path_child_numbers(path: DerivationPath) -> Result<Vec<ChildNumber>, Error> {
+    let children: Vec<ChildNumber> = path.into();
+    if children.len() != 5
+        || children[0] != ChildNumber::from_hardened_idx(86).unwrap()
+        || children[1].is_normal()
+        || children[2].is_normal()
+        || children[3].is_hardened()
+        || children[4].is_hardened()
+    {
+        Err(Error::InvalidParameter(
+            "derivation_path",
+            "path is not bip86 compatible".to_string(),
+        ))
+    } else {
+        Ok(children)
     }
 }
 
