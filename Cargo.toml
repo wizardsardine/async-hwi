@@ -1,12 +1,26 @@
-[package]
-name = "async-hwi"
+[workspace]
+members = ["cli"]
+
+[workspace.dependencies]
+async-hwi = { version = "0.0.12", path = "." }
+
+[workspace.package]
 version = "0.0.12"
 edition = "2018"
-description = "Async hardware wallet interface"
 authors = ["Edouard Paris <m@edouard.paris>"]
 license-file = "LICENSE"
 repository = "https://github.com/wizardsardine/async-hwi"
 keywords = ["bitcoin"]
+
+[package]
+name = "async-hwi"
+readme = "README.md"
+description = "Async hardware wallet interface"
+version.workspace = true
+license-file.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 [features]
 default = ["ledger", "specter", "bitbox"]
@@ -41,6 +55,3 @@ tokio = { version = "1.21.0", features = ["net", "time", "io-util", "sync"], opt
 
 [dev-dependencies]
 tokio = { version = "1.21", features = ["macros", "net", "rt", "rt-multi-thread", "io-util", "sync"] }
-
-[workspace]
-members = ["cli"]
