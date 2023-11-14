@@ -307,6 +307,12 @@ impl<T: Runtime + Sync + Send + 'static> From<BitBox02<T>> for Box<dyn HWI + Syn
     }
 }
 
+impl<T: Runtime + Sync + Send + 'static> From<BitBox02<T>> for Box<dyn HWI + Send> {
+    fn from(s: BitBox02<T>) -> Box<dyn HWI + Send> {
+        Box::new(s)
+    }
+}
+
 impl<T: Runtime + Sync + Send + 'static> From<BitBox02<T>>
     for std::sync::Arc<dyn HWI + Sync + Send>
 {

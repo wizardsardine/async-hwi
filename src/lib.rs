@@ -41,6 +41,8 @@ impl std::fmt::Display for Error {
     }
 }
 
+impl std::error::Error for Error {}
+
 /// HWI is the common Hardware Wallet Interface.
 #[async_trait]
 pub trait HWI: Debug {
