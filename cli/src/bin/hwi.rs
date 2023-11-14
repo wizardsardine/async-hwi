@@ -1,5 +1,6 @@
 use std::error::Error;
 
+use async_hwi::AddressScript;
 use async_hwi_cli::command;
 
 use bitcoin::{
@@ -26,6 +27,8 @@ struct Args {
 #[derive(Debug, Subcommand)]
 enum Commands {
     #[command(subcommand)]
+    Address(AddressCommands),
+    #[command(subcommand)]
     Device(DeviceCommands),
     #[command(subcommand)]
     Psbt(PsbtCommands),
@@ -33,6 +36,22 @@ enum Commands {
     Wallet(WalletCommands),
     #[command(subcommand)]
     Xpub(XpubCommands),
+}
+
+#[derive(Debug, Subcommand)]
+enum AddressCommands {
+    Display {
+        #[arg(long)]
+        index: Option<u32>,
+        #[arg(long)]
+        wallet_name: Option<String>,
+        #[arg(long)]
+        wallet_policy: Option<String>,
+        #[arg(long)]
+        hmac: Option<String>,
+        #[arg(long, value_parser = clap::value_parser!(bitcoin::bip32::DerivationPath))]
+        p2tr: Option<DerivationPath>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -76,6 +95,51 @@ enum XpubCommands {
 async fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
     match args.command {
+        Commands::Address(AddressCommands::Display {
+            index,
+            wallet_name,
+            wallet_policy,
+            hmac,
+            p2tr,
+        }) => {
+            if let Some(policy) = wallet_policy {
+                for device in command::list(
+                    args.network,
+                    Some(command::Wallet {
+                        name: wallet_name.as_ref(),
+                        policy: &policy,
+                        hmac: hmac.as_ref(),
+                    }),
+                )
+                .await?
+                {
+                    if let Some(fg) = args.fingerprint {
+                        if fg != device.get_master_fingerprint().await? {
+                            continue;
+                        }
+                    }
+                    device
+                        .display_address(&AddressScript::Miniscript {
+                            index: index.expect("Must be present"),
+                            change: false,
+                        })
+                        .await?;
+                    break;
+                }
+            } else if let Some(path) = p2tr {
+                for device in command::list(args.network, None).await? {
+                    {
+                        if let Some(fg) = args.fingerprint {
+                            if fg != device.get_master_fingerprint().await? {
+                                continue;
+                            }
+                        }
+                        device.display_address(&AddressScript::P2TR(path)).await?;
+                        break;
+                    }
+                }
+            }
+        }
         Commands::Device(DeviceCommands::List) => {
             for device in command::list(args.network, None).await? {
                 eprintln!(
