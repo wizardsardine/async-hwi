@@ -89,18 +89,6 @@ impl<T: Transport + Sync + Send> HWI for Specter<T> {
         Err(HWIError::UnimplementedMethod)
     }
 
-    async fn is_connected(&self) -> Result<(), HWIError> {
-        if let Err(e) =
-            tokio::time::timeout(std::time::Duration::from_millis(500), self.fingerprint())
-                .await
-                .map_err(|_| HWIError::DeviceNotFound)?
-        {
-            Err(HWIError::from(e))
-        } else {
-            Ok(())
-        }
-    }
-
     async fn get_master_fingerprint(&self) -> Result<Fingerprint, HWIError> {
         Ok(self.fingerprint().await?)
     }
@@ -213,7 +201,7 @@ impl SpecterSimulator {
             transport: TcpTransport {},
             kind: DeviceKind::SpecterSimulator,
         };
-        s.is_connected().await?;
+        let _ = s.get_master_fingerprint().await?;
         Ok(s)
     }
 }
@@ -230,7 +218,7 @@ impl Specter<SerialTransport> {
         let mut res = Vec::new();
         for port_name in SerialTransport::enumerate_potential_ports()? {
             let specter = Specter::<SerialTransport>::new(port_name);
-            if specter.is_connected().await.is_ok() {
+            if specter.get_master_fingerprint().await.is_ok() {
                 res.push(specter);
             }
         }

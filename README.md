@@ -8,10 +8,8 @@ pub trait HWI: Debug {
     fn device_kind(&self) -> DeviceKind;
     /// Application version or OS version.
     async fn get_version(&self) -> Result<Version, Error>;
-    /// Check that the device is connected but not necessarily available.
-    async fn is_connected(&self) -> Result<(), Error>;
     /// Get master fingerprint.
-    async fn get_fingerprint(&self) -> Result<Fingerprint, Error>;
+    async fn get_master_fingerprint(&self) -> Result<Fingerprint, Error>;
     /// Get the xpub with the given derivation path.
     async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, Error>;
     /// Register a new wallet policy

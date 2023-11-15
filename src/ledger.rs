@@ -88,11 +88,6 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
         Ok(extract_version(&version)?)
     }
 
-    async fn is_connected(&self) -> Result<(), HWIError> {
-        self.client.get_master_fingerprint().await?;
-        Ok(())
-    }
-
     async fn get_master_fingerprint(&self) -> Result<Fingerprint, HWIError> {
         Ok(self.client.get_master_fingerprint().await?)
     }

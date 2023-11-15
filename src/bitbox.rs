@@ -177,10 +177,6 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
         Err(HWIError::UnimplementedMethod)
     }
 
-    async fn is_connected(&self) -> Result<(), HWIError> {
-        Err(HWIError::UnimplementedMethod)
-    }
-
     async fn get_master_fingerprint(&self) -> Result<Fingerprint, HWIError> {
         let fg = self
             .client
