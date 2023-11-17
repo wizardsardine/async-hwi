@@ -1,6 +1,8 @@
 pub mod bip389;
 #[cfg(feature = "bitbox")]
 pub mod bitbox;
+#[cfg(feature = "coldcard")]
+pub mod coldcard;
 #[cfg(feature = "ledger")]
 pub mod ledger;
 #[cfg(feature = "specter")]
@@ -13,7 +15,7 @@ use bitcoin::{
     psbt::PartiallySignedTransaction as Psbt,
 };
 
-use std::fmt::Debug;
+use std::{fmt::Debug, str::FromStr};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -27,6 +29,7 @@ pub enum Error {
     DeviceNotFound,
     DeviceDidNotSign,
     Device(String),
+    Unexpected(&'static str),
 }
 
 impl std::fmt::Display for Error {
@@ -42,6 +45,7 @@ impl std::fmt::Display for Error {
             Error::DeviceDidNotSign => write!(f, "Device did not sign"),
             Error::Device(e) => write!(f, "{}", e),
             Error::InvalidParameter(param, e) => write!(f, "Invalid parameter {}: {}", param, e),
+            Error::Unexpected(e) => write!(f, "{}", e),
         }
     }
 }
@@ -89,6 +93,37 @@ pub struct Version {
     pub prerelease: Option<String>,
 }
 
+#[cfg(feature = "regex")]
+pub fn parse_version(s: &str) -> Result<Version, Error> {
+    // Regex from https://semver.org/ with patch group marked as optional
+    let re = regex::Regex::new(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$").unwrap();
+    if let Some(captures) = re.captures(s.trim_start_matches('v').trim_end_matches('X')) {
+        let major = if let Some(s) = captures.get(1) {
+            u32::from_str(s.as_str()).map_err(|_| Error::UnsupportedVersion)?
+        } else {
+            0
+        };
+        let minor = if let Some(s) = captures.get(2) {
+            u32::from_str(s.as_str()).map_err(|_| Error::UnsupportedVersion)?
+        } else {
+            0
+        };
+        let patch = if let Some(s) = captures.get(3) {
+            u32::from_str(s.as_str()).map_err(|_| Error::UnsupportedVersion)?
+        } else {
+            0
+        };
+        Ok(Version {
+            major,
+            minor,
+            patch,
+            prerelease: captures.get(4).map(|s| s.as_str().to_string()),
+        })
+    } else {
+        Err(Error::UnsupportedVersion)
+    }
+}
+
 impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         if let Some(prerelease) = &self.prerelease {
@@ -108,6 +143,7 @@ impl std::fmt::Display for Version {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceKind {
     BitBox02,
+    Coldcard,
     Specter,
     SpecterSimulator,
     Ledger,
@@ -118,6 +154,7 @@ impl std::fmt::Display for DeviceKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             DeviceKind::BitBox02 => write!(f, "bitbox02"),
+            DeviceKind::Coldcard => write!(f, "coldcard"),
             DeviceKind::Specter => write!(f, "specter"),
             DeviceKind::SpecterSimulator => write!(f, "specter-simulator"),
             DeviceKind::Ledger => write!(f, "ledger"),
@@ -137,6 +174,66 @@ impl std::str::FromStr for DeviceKind {
             "ledger" => Ok(DeviceKind::Ledger),
             "ledger-simulator" => Ok(DeviceKind::LedgerSimulator),
             _ => Err(()),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(feature = "regex")]
+    #[test]
+    fn test_parse_version() {
+        let test_cases = [
+            (
+                "v2.1.0",
+                Version {
+                    major: 2,
+                    minor: 1,
+                    patch: 0,
+                    prerelease: None,
+                },
+            ),
+            (
+                "v1.0",
+                Version {
+                    major: 1,
+                    minor: 0,
+                    patch: 0,
+                    prerelease: None,
+                },
+            ),
+            (
+                "3.0-rc2",
+                Version {
+                    major: 3,
+                    minor: 0,
+                    patch: 0,
+                    prerelease: Some("rc2".to_string()),
+                },
+            ),
+            (
+                "0.1.0-ALPHA",
+                Version {
+                    major: 0,
+                    minor: 1,
+                    patch: 0,
+                    prerelease: Some("ALPHA".to_string()),
+                },
+            ),
+            (
+                "6.2.1X",
+                Version {
+                    major: 6,
+                    minor: 2,
+                    patch: 1,
+                    prerelease: None,
+                },
+            ),
+        ];
+        for (s, v) in test_cases {
+            assert_eq!(v, parse_version(s).unwrap());
         }
     }
 }

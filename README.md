@@ -33,15 +33,16 @@ pub enum AddressScript {
 
 A Empty case means the method is unimplemented on the client or device side.
 
-|                        | BitBox02[^1] | Ledger Nano S/S+[^2] | Specter[^3] |
-|----------------------- |--------------|----------------------|-------------|
-| get_version            |              | >= v2.1.2            |             |
-| get_master_fingerprint | >= v9.15.0   | >= v2.1.2            | >= v1.8.0   |
-| get_extended_pubkey    | >= v9.15.0   | >= v2.1.2            | >= v1.8.0   |
-| register_wallet        | >= v9.15.0   | >= v2.1.2            | >= v1.8.0   |
-| display_address        | >= v9.15.0   | >= v2.1.2            |             |
-| sign_tx                | >= v9.15.0   | >= v2.1.2            | >= v1.8.0   |
+|                        | BitBox02[^1] | Coldcard[^2] | Ledger Nano S/S+[^3] | Specter[^4] |
+|----------------------- |--------------|------------- |----------------------|-------------|
+| get_version            |              | >= 6.2.1X    | >= v2.1.2            |             |
+| get_master_fingerprint | >= v9.15.0   | >= 6.2.1X    | >= v2.1.2            | >= v1.8.0   |
+| get_extended_pubkey    | >= v9.15.0   | >= 6.2.1X    | >= v2.1.2            | >= v1.8.0   |
+| register_wallet        | >= v9.15.0   | >= 6.2.1X    | >= v2.1.2            | >= v1.8.0   |
+| display_address        | >= v9.15.0   | >= 6.2.1X    | >= v2.1.2            |             |
+| sign_tx                | >= v9.15.0   | >= 6.2.1X    | >= v2.1.2            | >= v1.8.0   |
 
 [^1]: https://github.com/digitalbitbox/bitbox02-firmware
-[^2]: https://github.com/LedgerHQ/app-bitcoin-new  
-[^3]: https://github.com/cryptoadvance/specter-diy
+[^2]: https://github.com/alfred-hodler/rust-coldcard
+[^3]: https://github.com/LedgerHQ/app-bitcoin-new  
+[^4]: https://github.com/cryptoadvance/specter-diy
