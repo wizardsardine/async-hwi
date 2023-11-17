@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use async_trait::async_trait;
 use bitcoin::{
-    bip32::{DerivationPath, ExtendedPubKey, Fingerprint},
+    bip32::{ChildNumber, DerivationPath, ExtendedPubKey, Fingerprint},
     psbt::Psbt,
 };
 use ledger_bitcoin_client::psbt::PartialSignature;
@@ -28,7 +28,7 @@ use ledger_bitcoin_client::{
     WalletPolicy, WalletPubKey,
 };
 
-use super::{DeviceKind, Error as HWIError, Version, HWI};
+use crate::{utils, AddressScript, DeviceKind, Error as HWIError, Version, HWI};
 
 pub use hidapi::{DeviceInfo, HidApi};
 pub use ledger_bitcoin_client::async_client::Transport;
@@ -88,11 +88,6 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
         Ok(extract_version(&version)?)
     }
 
-    async fn is_connected(&self) -> Result<(), HWIError> {
-        self.client.get_master_fingerprint().await?;
-        Ok(())
-    }
-
     async fn get_master_fingerprint(&self) -> Result<Fingerprint, HWIError> {
         Ok(self.client.get_master_fingerprint().await?)
     }
@@ -102,6 +97,48 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
             .client
             .get_extended_pubkey(path, self.options.display_xpub)
             .await?)
+    }
+
+    async fn display_address(&self, script: &AddressScript) -> Result<(), HWIError> {
+        match script {
+            AddressScript::P2TR(path) => {
+                let children = utils::bip86_path_child_numbers(path.clone())?;
+                let (hardened_children, normal_children) = children.split_at(3);
+                let path = DerivationPath::from(hardened_children);
+                let fg = self.get_master_fingerprint().await?;
+                let xpub = self.get_extended_pubkey(&path).await?;
+                let policy = format!(
+                    "tr([{}{}]{}/**)",
+                    fg,
+                    path.to_string().trim_start_matches('m'),
+                    xpub
+                );
+                let (descriptor_template, keys) = extract_keys_and_template(&policy)?;
+                let wallet =
+                    WalletPolicy::new("".into(), WalletVersion::V2, descriptor_template, keys);
+
+                self.client
+                    .get_wallet_address(
+                        &wallet,
+                        None,
+                        normal_children[0] == ChildNumber::from_normal_idx(0).unwrap(),
+                        normal_children[1].into(),
+                        true,
+                    )
+                    .await?;
+            }
+            AddressScript::Miniscript { index, change } => {
+                let (policy, hmac) = &self
+                    .options
+                    .wallet
+                    .as_ref()
+                    .ok_or_else(|| HWIError::MissingPolicy)?;
+                self.client
+                    .get_wallet_address(policy, hmac.as_ref(), *change, *index, true)
+                    .await?;
+            }
+        }
+        Ok(())
     }
 
     async fn register_wallet(
