@@ -1,12 +1,12 @@
 [package]
 name = "async-hwi-cli"
-version = "0.0.1"
-edition = "2021"
-description = "CLI to communicate with Hardware Wallet Interface"
-authors = ["Edouard Paris <m@edouard.paris>"]
-license-file = "../LICENSE"
-repository = "https://github.com/wizardsardine/async-hwi"
-keywords = ["bitcoin", "hwi"]
+readme = "README.md"
+description = "HWI CLI"
+version.workspace = true
+license-file.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 [[bin]]
 name = "hwi"
@@ -16,5 +16,5 @@ path = "src/bin/hwi.rs"
 clap = { version = "4.4.7", features = ["derive"] }
 bitcoin = "0.30.0"
 hex = "0.4"
-async-hwi = { path = ".." }
+async-hwi = { workspace = true }
 tokio = { version = "1", features = ["macros", "net", "rt", "rt-multi-thread", "io-util", "sync"] }
