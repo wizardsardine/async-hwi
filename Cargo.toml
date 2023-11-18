@@ -2,10 +2,10 @@
 members = ["cli"]
 
 [workspace.dependencies]
-async-hwi = { version = "0.0.12", path = "." }
+async-hwi = { version = "0.0.13", path = "." }
 
 [workspace.package]
-version = "0.0.12"
+version = "0.0.13"
 edition = "2018"
 authors = ["Edouard Paris <m@edouard.paris>"]
 license-file = "LICENSE"
