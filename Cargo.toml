@@ -39,7 +39,7 @@ tokio-serial = { version = "5.4.1", optional = true }
 serialport = { version = "4.2", optional = true }
 
 #bitbox
-bitbox-api = { version = "0.1.8", default-features = false, features = ["usb", "tokio", "multithreaded"], optional = true }
+bitbox-api = { version = "0.2.2", default-features = false, features = ["usb", "tokio", "multithreaded"], optional = true }
 
 # ledger
 ledger_bitcoin_client = { version = "0.3.2", optional = true }
