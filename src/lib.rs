@@ -65,19 +65,19 @@ pub trait HWI: Debug {
     async fn get_master_fingerprint(&self) -> Result<Fingerprint, Error>;
     /// Get the xpub with the given derivation path.
     async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, Error>;
-    /// Display address
-    async fn display_address(&self, script: &AddressScript) -> Result<(), Error>;
-    /// Register a new wallet policy
+    /// Register a new wallet policy.
     async fn register_wallet(&self, name: &str, policy: &str) -> Result<Option<[u8; 32]>, Error>;
+    /// Display address on the device screen.
+    async fn display_address(&self, script: &AddressScript) -> Result<(), Error>;
     /// Sign a partially signed bitcoin transaction (PSBT).
     async fn sign_tx(&self, tx: &mut Psbt) -> Result<(), Error>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AddressScript {
-    /// Must be bip86 path.
+    /// Must be a bip86 path.
     P2TR(DerivationPath),
-    ///Miniscript requires the policy loaded into the device
+    /// Miniscript requires the policy be loaded into the device.
     Miniscript { index: u32, change: bool },
 }
 

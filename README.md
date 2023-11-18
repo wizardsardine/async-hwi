@@ -13,17 +13,35 @@ pub trait HWI: Debug {
     /// Get the xpub with the given derivation path.
     async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, Error>;
     /// Register a new wallet policy
-    async fn register_wallet(&mut self, name: &str, policy: &str) -> Result<Option<[u8; 32]>, Error>;
+    async fn register_wallet(&self, name: &str, policy: &str) -> Result<Option<[u8; 32]>, Error>;
+    /// Display an address on the device screen
+    async fn display_address(&self, script: &AddressScript) -> Result<(), Error>;
     /// Sign a partially signed bitcoin transaction (PSBT).
     async fn sign_tx(&self, tx: &mut Psbt) -> Result<(), Error>;
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AddressScript {
+    /// Must be a bip86 path.
+    P2TR(DerivationPath),
+    /// Miniscript requires the policy be loaded into the device.
+    Miniscript { index: u32, change: bool },
+}
 ```
 
-## Devices supported
+## Supported devices
 
-| name                                                           | App version |
-|----------------------------------------------------------------|-------------|
-| [Specter](https://github.com/cryptoadvance/specter-diy)        | v1.8.0      |
-| [Ledger](https://github.com/LedgerHQ/app-bitcoin-new)          | v2.1.2      |
-| [BitBox02](https://github.com/digitalbitbox/bitbox02-firmware) | v9.15.0     |
+A Empty case means the method is unimplemented on the client or device side.
 
+|                        | BitBox02[^1] | Ledger Nano S/S+[^2] | Specter[^3] |
+|----------------------- |--------------|----------------------|-------------|
+| get_version            |              | >= v2.1.2            |             |
+| get_master_fingerprint | >= v9.15.0   | >= v2.1.2            | >= v1.8.0   |
+| get_extended_pubkey    | >= v9.15.0   | >= v2.1.2            | >= v1.8.0   |
+| register_wallet        | >= v9.15.0   | >= v2.1.2            | >= v1.8.0   |
+| display_address        | >= v9.15.0   | >= v2.1.2            |             |
+| sign_tx                | >= v9.15.0   | >= v2.1.2            | >= v1.8.0   |
+
+[^1]: https://github.com/digitalbitbox/bitbox02-firmware
+[^2]: https://github.com/LedgerHQ/app-bitcoin-new  
+[^3]: https://github.com/cryptoadvance/specter-diy
