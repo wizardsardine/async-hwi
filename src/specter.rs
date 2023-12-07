@@ -124,6 +124,12 @@ impl<T: Transport + Sync + Send> HWI for Specter<T> {
                     .partial_sigs
                     .append(&mut new_psbt.inputs[i].partial_sigs)
             }
+            if !new_psbt.inputs[i].tap_script_sigs.is_empty() {
+                has_signed = true;
+                psbt.inputs[i]
+                    .tap_script_sigs
+                    .append(&mut new_psbt.inputs[i].tap_script_sigs)
+            }
         }
 
         if !has_signed {
