@@ -41,6 +41,7 @@ A Empty case means the method is unimplemented on the client or device side.
 | get_master_fingerprint | >= v9.15.0   | >= 6.2.1X    | >= v2.1.2            | >= v1.8.0   |
 | get_extended_pubkey    | >= v9.15.0   | >= 6.2.1X    | >= v2.1.2            | >= v1.8.0   |
 | register_wallet        | >= v9.15.0   | >= 6.2.1X    | >= v2.1.2            | >= v1.8.0   |
+| is_wallet_registered   | >= v9.15.0   | >= 6.2.1X    | *check hmac presence |             |
 | display_address        | >= v9.15.0   | >= 6.2.1X    | >= v2.1.2            |             |
 | sign_tx                | >= v9.15.0   | >= 6.2.1X    | >= v2.1.2            | >= v1.8.0   |
 

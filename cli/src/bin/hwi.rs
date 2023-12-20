@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use async_hwi::AddressScript;
+use async_hwi::{AddressScript, DeviceKind};
 use async_hwi_cli::command;
 
 use bitcoin::{
@@ -78,6 +78,12 @@ enum WalletCommands {
     Register {
         #[arg(long)]
         name: String,
+        #[arg(long)]
+        policy: String,
+    },
+    IsRegistered {
+        #[arg(long)]
+        name: Option<String>,
         #[arg(long)]
         policy: String,
     },
@@ -167,9 +173,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         continue;
                     }
                 }
+
                 if let Some(hmac) = device.register_wallet(&name, &policy).await? {
                     eprintln!("{}", hex::encode(hmac));
                 }
+            }
+        }
+        Commands::Wallet(WalletCommands::IsRegistered { name, policy }) => {
+            for device in command::list(args.network, None).await? {
+                if let Some(fg) = args.fingerprint {
+                    if fg != device.get_master_fingerprint().await? {
+                        continue;
+                    }
+                }
+                let (name, policy) = match device.device_kind() {
+                    DeviceKind::Ledger | DeviceKind::LedgerSimulator | DeviceKind::Coldcard => {
+                        (name.clone().expect("name is required"), policy.clone())
+                    }
+                    _ => ("".into(), policy.clone()),
+                };
+                let res = device.is_wallet_registered(&name, &policy).await?;
+                eprintln!("{}", res);
             }
         }
         Commands::Psbt(PsbtCommands::Sign {

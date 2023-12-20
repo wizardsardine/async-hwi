@@ -71,6 +71,8 @@ pub trait HWI: Debug {
     async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, Error>;
     /// Register a new wallet policy.
     async fn register_wallet(&self, name: &str, policy: &str) -> Result<Option<[u8; 32]>, Error>;
+    /// Returns true if the wallet is registered on the device.
+    async fn is_wallet_registered(&self, name: &str, policy: &str) -> Result<bool, Error>;
     /// Display address on the device screen.
     async fn display_address(&self, script: &AddressScript) -> Result<(), Error>;
     /// Sign a partially signed bitcoin transaction (PSBT).
