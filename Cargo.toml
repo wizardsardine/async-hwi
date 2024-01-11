@@ -29,7 +29,6 @@ specter = ["tokio", "tokio-serial", "serialport"]
 ledger = ["regex", "tokio", "ledger_bitcoin_client", "ledger-transport-hidapi", "ledger-apdu", "hidapi"]
 
 [dependencies]
-base64 = "0.13.0"
 async-trait = "0.1.52"
 futures = "0.3"
 bitcoin = { version = "0.30.0", default-features = false, features = ["base64", "serde", "no-std"] }
