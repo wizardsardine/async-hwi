@@ -157,6 +157,18 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
         Ok(Some(hmac))
     }
 
+    async fn is_wallet_registered(&self, name: &str, policy: &str) -> Result<bool, HWIError> {
+        if let Some((wallet, hmac)) = &self.options.wallet {
+            let (descriptor_template, keys) = extract_keys_and_template(policy)?;
+            Ok(hmac.is_some()
+                && name == wallet.name
+                && descriptor_template == wallet.descriptor_template
+                && keys == wallet.keys)
+        } else {
+            Ok(false)
+        }
+    }
+
     async fn sign_tx(&self, psbt: &mut Psbt) -> Result<(), HWIError> {
         if let Some((policy, hmac)) = &self.options.wallet {
             let sigs = self.client.sign_psbt(psbt, policy, hmac.as_ref()).await?;

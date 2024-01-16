@@ -104,6 +104,10 @@ impl<T: Transport + Sync + Send> HWI for Specter<T> {
         Ok(None)
     }
 
+    async fn is_wallet_registered(&self, _name: &str, _policy: &str) -> Result<bool, HWIError> {
+        Err(HWIError::UnimplementedMethod)
+    }
+
     async fn sign_tx(&self, psbt: &mut Psbt) -> Result<(), HWIError> {
         let mut new_psbt = self.sign(psbt).await?;
         // Psbt returned by specter wallet has all unnecessary fields removed,

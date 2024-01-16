@@ -109,6 +109,24 @@ impl HWI for Coldcard {
         Ok(None)
     }
 
+    async fn is_wallet_registered(&self, name: &str, policy: &str) -> Result<bool, HWIError> {
+        let descriptor_name = coldcard::protocol::DescriptorName::new(name)
+            .map_err(|_| HWIError::UnsupportedInput)?;
+        let desc = self
+            .device()?
+            .miniscript_get(descriptor_name)
+            .map_err(|e| HWIError::Device(e.to_string()))?;
+        if let Some(desc) = desc {
+            if let Some((policy, _)) = policy.replace('\'', "h").split_once('#') {
+                Ok(desc.contains(policy))
+            } else {
+                Ok(desc.contains(policy))
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
     async fn sign_tx(&self, psbt: &mut Psbt) -> Result<(), HWIError> {
         let mut cc = self.device()?;
 

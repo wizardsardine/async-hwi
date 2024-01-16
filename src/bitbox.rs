@@ -300,6 +300,15 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
             .map_err(|e| e.into())
     }
 
+    async fn is_wallet_registered(&self, _name: &str, policy: &str) -> Result<bool, HWIError> {
+        let pb_network = coin_from_network(self.network);
+        let policy = extract_script_config_policy(policy)?;
+        self.client
+            .btc_is_script_config_registered(pb_network, &policy.clone().into(), None)
+            .await
+            .map_err(|e| e.into())
+    }
+
     /// Bitbox and Coldcard sign with the first bip32_derivation that matches its fingerprint.
     /// It may be useful to user utils::Bip32DerivationFilter to filter already signed derivations
     /// and derivations collusion in case of multiple spending path per outputs.
