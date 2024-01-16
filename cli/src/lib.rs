@@ -1,6 +1,7 @@
 pub mod command {
     use async_hwi::{
         bitbox::{api::runtime, BitBox02, PairingBitbox02WithLocalCache},
+        coldcard,
         ledger::{HidApi, Ledger, LedgerSimulator, TransportHID},
         specter::{Specter, SpecterSimulator},
         HWI,
@@ -34,7 +35,7 @@ pub mod command {
             hws.push(device.into());
         }
 
-        let api = HidApi::new().unwrap();
+        let api = Box::new(HidApi::new().unwrap());
 
         for device_info in api.device_list() {
             if async_hwi::bitbox::is_bitbox02(device_info) {
@@ -52,6 +53,26 @@ pub mod command {
                             }
                             hws.push(bb02.into());
                         }
+                    }
+                }
+            }
+            if device_info.vendor_id() == coldcard::api::COINKITE_VID
+                && device_info.product_id() == coldcard::api::CKCC_PID
+            {
+                if let Some(sn) = device_info.serial_number() {
+                    if let Ok((cc, _)) = coldcard::api::Coldcard::open(&api, sn, None) {
+                        let mut hw = coldcard::Coldcard::from(cc);
+                        if let Some(ref wallet) = wallet {
+                            hw = hw.with_wallet_name(
+                                wallet
+                                    .name
+                                    .ok_or::<Box<dyn Error>>(
+                                        "coldcard requires a wallet name".into(),
+                                    )?
+                                    .to_string(),
+                            );
+                        }
+                        hws.push(hw.into())
                     }
                 }
             }

@@ -23,15 +23,17 @@ authors.workspace = true
 repository.workspace = true
 
 [features]
-default = ["ledger", "specter", "bitbox"]
-bitbox = ["tokio", "hidapi", "bitbox-api", "regex" ]
+default = ["ledger", "specter", "coldcard", "bitbox"]
+bitbox = ["tokio", "hidapi", "bitbox-api", "regex"]
+coldcard = ["dep:coldcard", "regex"]
 specter = ["tokio", "tokio-serial", "serialport"]
 ledger = ["regex", "tokio", "ledger_bitcoin_client", "ledger-transport-hidapi", "ledger-apdu", "hidapi"]
+regex = ["dep:regex"]
 
 [dependencies]
 async-trait = "0.1.52"
 futures = "0.3"
-bitcoin = { version = "0.30.0", default-features = false, features = ["base64", "serde", "no-std"] }
+bitcoin = { version = "0.30.0", default-features = false, features = ["base64", "serde", "std"] }
 
 # specter
 tokio-serial = { version = "5.4.1", optional = true }
@@ -39,6 +41,9 @@ serialport = { version = "4.2", optional = true }
 
 #bitbox
 bitbox-api = { version = "0.2.2", default-features = false, features = ["usb", "tokio", "multithreaded"], optional = true }
+
+#coldcard
+coldcard = { git = "https://github.com/darosior/rust-coldcard.git", branch = "2401_api_feature_msrv", default-features = false, features = ["linux-static-hidraw"], optional = true }
 
 # ledger
 ledger_bitcoin_client = { version = "0.3.2", optional = true }
