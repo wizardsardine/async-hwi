@@ -13,9 +13,11 @@ pub trait HWI: Debug {
     /// Get master fingerprint.
     async fn get_master_fingerprint(&self) -> Result<Fingerprint, Error>;
     /// Get the xpub with the given derivation path.
-    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, Error>;
+    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, Error>;
     /// Register a new wallet policy
     async fn register_wallet(&self, name: &str, policy: &str) -> Result<Option<[u8; 32]>, Error>;
+    /// Returns true if the wallet is registered
+    async fn is_wallet_registered(&self, name: &str, policy: &str) -> Result<bool, HWIError>; 
     /// Display an address on the device screen
     async fn display_address(&self, script: &AddressScript) -> Result<(), Error>;
     /// Sign a partially signed bitcoin transaction (PSBT).

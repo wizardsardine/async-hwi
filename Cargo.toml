@@ -33,20 +33,20 @@ regex = ["dep:regex"]
 [dependencies]
 async-trait = "0.1.52"
 futures = "0.3"
-bitcoin = { version = "0.30.0", default-features = false, features = ["base64", "serde", "std"] }
+bitcoin = { version = "0.31", default-features = false, features = ["base64", "serde", "std"] }
 
 # specter
 tokio-serial = { version = "5.4.1", optional = true }
 serialport = { version = "4.2", optional = true }
 
 #bitbox
-bitbox-api = { version = "0.2.2", default-features = false, features = ["usb", "tokio", "multithreaded"], optional = true }
+bitbox-api = { git = "https://github.com/edouardparis/bitbox-api-rs.git", branch = "bitcoin-0.31", default-features = false, features = ["usb", "tokio", "multithreaded"], optional = true }
 
 #coldcard
-coldcard = { git = "https://github.com/darosior/rust-coldcard.git", branch = "2401_api_feature_msrv", default-features = false, features = ["linux-static-hidraw"], optional = true }
+coldcard = { git = "https://github.com/alfred-hodler/rust-coldcard.git", branch = "redo_api", optional = true }
 
 # ledger
-ledger_bitcoin_client = { version = "0.3.2", optional = true }
+ledger_bitcoin_client = { git = "https://github.com/LedgerHQ/app-bitcoin-new.git", branch = "develop", optional = true }
 ledger-apdu = { version = "0.10", optional = true }
 ledger-transport-hidapi = { version = "0.10.0", optional = true }
 

@@ -2,8 +2,8 @@ use std::fmt::Debug;
 use std::str::FromStr;
 
 use bitcoin::{
-    bip32::{DerivationPath, ExtendedPubKey, Fingerprint},
-    psbt::PartiallySignedTransaction as Psbt,
+    bip32::{DerivationPath, Fingerprint, Xpub},
+    psbt::Psbt,
 };
 
 use serialport::{available_ports, SerialPortType};
@@ -32,16 +32,11 @@ impl<T: Transport> Specter<T> {
             })
     }
 
-    pub async fn get_extended_pubkey(
-        &self,
-        path: &DerivationPath,
-    ) -> Result<ExtendedPubKey, SpecterError> {
+    pub async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, SpecterError> {
         self.transport
             .request(&format!("\r\n\r\nxpub {}\r\n", path))
             .await
-            .and_then(|resp| {
-                ExtendedPubKey::from_str(&resp).map_err(|e| SpecterError::Device(e.to_string()))
-            })
+            .and_then(|resp| Xpub::from_str(&resp).map_err(|e| SpecterError::Device(e.to_string())))
     }
 
     /// If the descriptor contains master public keys but doesn't contain wildcard derivations,
@@ -87,7 +82,7 @@ impl<T: Transport + Sync + Send> HWI for Specter<T> {
         Ok(self.fingerprint().await?)
     }
 
-    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, HWIError> {
+    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, HWIError> {
         Ok(self.get_extended_pubkey(path).await?)
     }
 
