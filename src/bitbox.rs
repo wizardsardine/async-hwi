@@ -3,7 +3,7 @@ use api::btc::make_script_config_simple;
 use async_trait::async_trait;
 use bitbox_api::{
     btc::KeyOriginInfo,
-    error::Error,
+    error::{BitBoxError, Error},
     pb::{self, BtcScriptConfig},
     usb::UsbError,
     Keypath, PairedBitBox, PairingBitBox,
@@ -361,8 +361,12 @@ impl From<UsbError> for HWIError {
 }
 
 impl From<Error> for HWIError {
-    fn from(value: Error) -> Self {
-        HWIError::Device(value.to_string())
+    fn from(e: Error) -> Self {
+        if let Error::BitBox(BitBoxError::UserAbort) = e {
+            HWIError::UserRefused
+        } else {
+            HWIError::Device(e.to_string())
+        }
     }
 }
 

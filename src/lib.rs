@@ -30,6 +30,7 @@ pub enum Error {
     DeviceDidNotSign,
     Device(String),
     Unexpected(&'static str),
+    UserRefused,
 }
 
 impl std::fmt::Display for Error {
@@ -46,6 +47,7 @@ impl std::fmt::Display for Error {
             Error::Device(e) => write!(f, "{}", e),
             Error::InvalidParameter(param, e) => write!(f, "Invalid parameter {}: {}", param, e),
             Error::Unexpected(e) => write!(f, "{}", e),
+            Error::UserRefused => write!(f, "User refused operation"),
         }
     }
 }

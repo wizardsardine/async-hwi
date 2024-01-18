@@ -56,15 +56,29 @@ impl<T: Transport> Specter<T> {
                     .replace(';', ",")
                     .replace('>', "}")
             ))
-            .await?;
-        Ok(())
+            .await
+            .and_then(|resp| {
+                if resp.is_empty() || resp == "success" {
+                    Ok(())
+                } else if resp == "error: User cancelled" {
+                    Err(SpecterError::UserCancelled)
+                } else {
+                    Err(SpecterError::Device(resp))
+                }
+            })
     }
 
     pub async fn sign(&self, psbt: &Psbt) -> Result<Psbt, SpecterError> {
         self.transport
             .request(&format!("\r\n\r\nsign {}\r\n", psbt))
             .await
-            .and_then(|resp| Psbt::from_str(&resp).map_err(|e| SpecterError::Device(e.to_string())))
+            .and_then(|resp| {
+                if resp == "error: User cancelled" {
+                    Err(SpecterError::UserCancelled)
+                } else {
+                    Psbt::from_str(&resp).map_err(|e| SpecterError::Device(e.to_string()))
+                }
+            })
     }
 }
 
@@ -279,6 +293,7 @@ pub enum SpecterError {
     DeviceNotFound,
     DeviceDidNotSign,
     Device(String),
+    UserCancelled,
 }
 
 impl std::fmt::Display for SpecterError {
@@ -287,6 +302,7 @@ impl std::fmt::Display for SpecterError {
             Self::DeviceNotFound => write!(f, "Specter not found"),
             Self::DeviceDidNotSign => write!(f, "Specter did not sign the psbt"),
             Self::Device(e) => write!(f, "Specter error: {}", e),
+            Self::UserCancelled => write!(f, "User cancelled operation"),
         }
     }
 }
@@ -297,6 +313,7 @@ impl From<SpecterError> for HWIError {
             SpecterError::DeviceNotFound => HWIError::DeviceNotFound,
             SpecterError::DeviceDidNotSign => HWIError::DeviceDidNotSign,
             SpecterError::Device(e) => HWIError::Device(e),
+            SpecterError::UserCancelled => HWIError::UserRefused,
         }
     }
 }

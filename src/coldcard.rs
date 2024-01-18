@@ -48,10 +48,7 @@ impl HWI for Coldcard {
 
     /// The first semver version returned by coldcard is the firmware version.
     async fn get_version(&self) -> Result<Version, HWIError> {
-        let s = self
-            .device()?
-            .version()
-            .map_err(|e| HWIError::Device(e.to_string()))?;
+        let s = self.device()?.version()?;
         for line in s.split('\n') {
             if let Ok(version) = parse_version(line) {
                 return Ok(version);
@@ -61,10 +58,7 @@ impl HWI for Coldcard {
     }
 
     async fn get_master_fingerprint(&self) -> Result<Fingerprint, HWIError> {
-        let s = self
-            .device()?
-            .xpub(None)
-            .map_err(|e| HWIError::Device(e.to_string()))?;
+        let s = self.device()?.xpub(None)?;
         let xpub = Xpub::from_str(&s).map_err(|e| HWIError::Device(e.to_string()))?;
         Ok(xpub.fingerprint())
     }
@@ -72,10 +66,7 @@ impl HWI for Coldcard {
     async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, HWIError> {
         let path = coldcard::protocol::DerivationPath::new(&path.to_string())
             .map_err(|e| HWIError::InvalidParameter("path", format!("{:?}", e)))?;
-        let s = self
-            .device()?
-            .xpub(Some(path))
-            .map_err(|e| HWIError::Device(e.to_string()))?;
+        let s = self.device()?.xpub(Some(path))?;
         Xpub::from_str(&s).map_err(|e| HWIError::Device(e.to_string()))
     }
 
@@ -85,8 +76,7 @@ impl HWI for Coldcard {
                 .map_err(|_| HWIError::UnsupportedInput)?;
             if let AddressScript::Miniscript { index, change } = script {
                 self.device()?
-                    .miniscript_address(descriptor_name, *change, *index)
-                    .map_err(|e| HWIError::Device(e.to_string()))?;
+                    .miniscript_address(descriptor_name, *change, *index)?;
                 Ok(())
             } else {
                 Err(HWIError::UnimplementedMethod)
@@ -102,20 +92,14 @@ impl HWI for Coldcard {
         policy: &str,
     ) -> Result<Option<[u8; 32]>, HWIError> {
         let payload = format!("{{\"name\":\"{}\",\"desc\":\"{}\"}}", name, policy);
-        let _ = self
-            .device()?
-            .miniscript_enroll(payload.as_bytes())
-            .map_err(|e| HWIError::Device(e.to_string()))?;
+        let _ = self.device()?.miniscript_enroll(payload.as_bytes())?;
         Ok(None)
     }
 
     async fn is_wallet_registered(&self, name: &str, policy: &str) -> Result<bool, HWIError> {
         let descriptor_name = coldcard::protocol::DescriptorName::new(name)
             .map_err(|_| HWIError::UnsupportedInput)?;
-        let desc = self
-            .device()?
-            .miniscript_get(descriptor_name)
-            .map_err(|e| HWIError::Device(e.to_string()))?;
+        let desc = self.device()?.miniscript_get(descriptor_name)?;
         if let Some(desc) = desc {
             if let Some((policy, _)) = policy.replace('\'', "h").split_once('#') {
                 Ok(desc.contains(policy))
@@ -130,15 +114,10 @@ impl HWI for Coldcard {
     async fn sign_tx(&self, psbt: &mut Psbt) -> Result<(), HWIError> {
         let mut cc = self.device()?;
 
-        let _ = cc
-            .sign_psbt(&psbt.serialize(), api::SignMode::Signed)
-            .map_err(|e| HWIError::Device(e.to_string()))?;
+        let _ = cc.sign_psbt(&psbt.serialize(), api::SignMode::Signed)?;
 
         let tx = loop {
-            if let Some(tx) = cc
-                .get_signed_tx()
-                .map_err(|e| HWIError::Device(e.to_string()))?
-            {
+            if let Some(tx) = cc.get_signed_tx()? {
                 break tx;
             }
         };
@@ -155,6 +134,16 @@ impl HWI for Coldcard {
         }
 
         Ok(())
+    }
+}
+
+impl From<api::Error> for HWIError {
+    fn from(e: api::Error) -> Self {
+        if let api::Error::UnexpectedResponse(api::protocol::Response::Refused) = e {
+            HWIError::UserRefused
+        } else {
+            HWIError::Device(e.to_string())
+        }
     }
 }
 
