@@ -148,12 +148,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
         Commands::Device(DeviceCommands::List) => {
             for device in command::list(args.network, None).await? {
-                eprintln!(
-                    "{} {} {}",
-                    device.device_kind(),
-                    device.get_master_fingerprint().await?,
-                    device.get_version().await.map(|v| v.to_string())?
-                );
+                eprint!("{}", device.get_master_fingerprint().await?,);
+                eprint!(" {}", device.device_kind());
+                if let Ok(version) = device.get_version().await.map(|v| v.to_string()) {
+                    eprint!(" {}", version);
+                }
+                eprintln!();
             }
         }
         Commands::Xpub(XpubCommands::Get { path }) => {
