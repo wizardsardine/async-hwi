@@ -330,6 +330,11 @@ impl Transport for TransportTcp {
 
 impl<T: core::fmt::Debug> From<BitcoinClientError<T>> for HWIError {
     fn from(e: BitcoinClientError<T>) -> HWIError {
+        if let BitcoinClientError::Device { status, .. } = e {
+            if status == StatusWord::Deny {
+                return HWIError::UserRefused;
+            }
+        };
         HWIError::Device(format!("{:#?}", e))
     }
 }
