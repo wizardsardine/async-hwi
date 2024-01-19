@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use async_trait::async_trait;
 use bitcoin::{
-    bip32::{ChildNumber, DerivationPath, ExtendedPubKey, Fingerprint},
+    bip32::{ChildNumber, DerivationPath, Fingerprint, Xpub},
     psbt::Psbt,
 };
 use ledger_bitcoin_client::psbt::PartialSignature;
@@ -92,7 +92,7 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
         Ok(self.client.get_master_fingerprint().await?)
     }
 
-    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, HWIError> {
+    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, HWIError> {
         Ok(self
             .client
             .get_extended_pubkey(path, self.options.display_xpub)

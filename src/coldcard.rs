@@ -5,7 +5,7 @@ use std::{
 
 use async_trait::async_trait;
 use bitcoin::{
-    bip32::{DerivationPath, ExtendedPubKey, Fingerprint},
+    bip32::{DerivationPath, Fingerprint, Xpub},
     psbt::Psbt,
 };
 
@@ -65,18 +65,18 @@ impl HWI for Coldcard {
             .device()?
             .xpub(None)
             .map_err(|e| HWIError::Device(e.to_string()))?;
-        let xpub = ExtendedPubKey::from_str(&s).map_err(|e| HWIError::Device(e.to_string()))?;
+        let xpub = Xpub::from_str(&s).map_err(|e| HWIError::Device(e.to_string()))?;
         Ok(xpub.fingerprint())
     }
 
-    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, HWIError> {
+    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, HWIError> {
         let path = coldcard::protocol::DerivationPath::new(&path.to_string())
             .map_err(|e| HWIError::InvalidParameter("path", format!("{:?}", e)))?;
         let s = self
             .device()?
             .xpub(Some(path))
             .map_err(|e| HWIError::Device(e.to_string()))?;
-        ExtendedPubKey::from_str(&s).map_err(|e| HWIError::Device(e.to_string()))
+        Xpub::from_str(&s).map_err(|e| HWIError::Device(e.to_string()))
     }
 
     async fn display_address(&self, script: &AddressScript) -> Result<(), HWIError> {

@@ -11,8 +11,8 @@ pub mod utils;
 
 use async_trait::async_trait;
 use bitcoin::{
-    bip32::{DerivationPath, ExtendedPubKey, Fingerprint},
-    psbt::PartiallySignedTransaction as Psbt,
+    bip32::{DerivationPath, Fingerprint, Xpub},
+    psbt::Psbt,
 };
 
 use std::{fmt::Debug, str::FromStr};
@@ -68,7 +68,7 @@ pub trait HWI: Debug {
     /// Get master fingerprint.
     async fn get_master_fingerprint(&self) -> Result<Fingerprint, Error>;
     /// Get the xpub with the given derivation path.
-    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, Error>;
+    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, Error>;
     /// Register a new wallet policy.
     async fn register_wallet(&self, name: &str, policy: &str) -> Result<Option<[u8; 32]>, Error>;
     /// Returns true if the wallet is registered on the device.

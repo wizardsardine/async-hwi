@@ -9,7 +9,7 @@ use bitbox_api::{
     Keypath, PairedBitBox, PairingBitBox,
 };
 use bitcoin::{
-    bip32::{ChildNumber, DerivationPath, ExtendedPubKey, Fingerprint},
+    bip32::{ChildNumber, DerivationPath, Fingerprint, Xpub},
     psbt::Psbt,
 };
 use regex::Regex;
@@ -183,7 +183,7 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
         Ok(Fingerprint::from_str(&fg).map_err(|e| HWIError::Device(e.to_string()))?)
     }
 
-    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<ExtendedPubKey, HWIError> {
+    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, HWIError> {
         let fg = self
             .client
             .btc_xpub(
@@ -202,7 +202,7 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
             )
             .await
             .map_err(|e| HWIError::Device(e.to_string()))?;
-        Ok(ExtendedPubKey::from_str(&fg).map_err(|e| HWIError::Device(e.to_string()))?)
+        Ok(Xpub::from_str(&fg).map_err(|e| HWIError::Device(e.to_string()))?)
     }
 
     async fn display_address(&self, script: &AddressScript) -> Result<(), HWIError> {
@@ -399,7 +399,7 @@ pub fn extract_script_config_policy(policy: &str) -> Result<Policy, HWIError> {
     let mut pubkeys: Vec<KeyInfo> = Vec::new();
     for (i, key_str) in pubkeys_str.iter().enumerate() {
         descriptor_template = descriptor_template.replace(key_str, &format!("@{}", i));
-        let pubkey = if let Ok(key) = ExtendedPubKey::from_str(key_str) {
+        let pubkey = if let Ok(key) = Xpub::from_str(key_str) {
             KeyInfo {
                 path: None,
                 master_fingerprint: None,
@@ -424,7 +424,7 @@ pub fn extract_script_config_policy(policy: &str) -> Result<Policy, HWIError> {
             };
 
             KeyInfo {
-                xpub: ExtendedPubKey::from_str(xpub_str)
+                xpub: Xpub::from_str(xpub_str)
                     .map_err(|e| HWIError::InvalidParameter("policy", e.to_string()))?,
                 path: Some(derivation_path),
                 master_fingerprint: Some(fingerprint),
@@ -480,7 +480,7 @@ impl From<Policy> for BtcScriptConfig {
 
 #[derive(Clone)]
 pub struct KeyInfo {
-    xpub: ExtendedPubKey,
+    xpub: Xpub,
     path: Option<DerivationPath>,
     master_fingerprint: Option<Fingerprint>,
 }

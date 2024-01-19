@@ -14,7 +14,7 @@ path = "src/bin/hwi.rs"
 
 [dependencies]
 clap = { version = "4.4.7", features = ["derive"] }
-bitcoin = "0.30.0"
+bitcoin = "0.31"
 hex = "0.4"
 async-hwi = { workspace = true }
 tokio = { version = "1", features = ["macros", "net", "rt", "rt-multi-thread", "io-util", "sync"] }
