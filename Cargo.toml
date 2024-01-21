@@ -43,10 +43,10 @@ serialport = { version = "4.2", optional = true }
 bitbox-api = { git = "https://github.com/edouardparis/bitbox-api-rs.git", branch = "bitcoin-0.31", default-features = false, features = ["usb", "tokio", "multithreaded"], optional = true }
 
 #coldcard
-coldcard = { git = "https://github.com/alfred-hodler/rust-coldcard.git", branch = "redo_api", optional = true }
+coldcard = { version = "0.11.0", optional = true }
 
 # ledger
-ledger_bitcoin_client = { git = "https://github.com/LedgerHQ/app-bitcoin-new.git", branch = "develop", optional = true }
+ledger_bitcoin_client = { version = "0.4.0", optional = true }
 ledger-apdu = { version = "0.10", optional = true }
 ledger-transport-hidapi = { version = "0.10.0", optional = true }
 
