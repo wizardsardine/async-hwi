@@ -1,11 +1,7 @@
 [workspace]
 members = ["cli"]
 
-[workspace.dependencies]
-async-hwi = { version = "0.0.13", path = "." }
-
 [workspace.package]
-version = "0.0.13"
 edition = "2018"
 authors = ["Edouard Paris <m@edouard.paris>"]
 license-file = "LICENSE"
@@ -14,9 +10,9 @@ keywords = ["bitcoin"]
 
 [package]
 name = "async-hwi"
+version = "0.0.14"
 readme = "README.md"
 description = "Async hardware wallet interface"
-version.workspace = true
 license-file.workspace = true
 edition.workspace = true
 authors.workspace = true
