@@ -15,7 +15,7 @@ use bitcoin::{
     psbt::Psbt,
 };
 
-use std::{fmt::Debug, str::FromStr};
+use std::{cmp::Ordering, fmt::Debug, str::FromStr};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -125,6 +125,29 @@ pub fn parse_version(s: &str) -> Result<Version, Error> {
         })
     } else {
         Err(Error::UnsupportedVersion)
+    }
+}
+
+impl PartialOrd for Version {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match self.major.cmp(&other.major) {
+            Ordering::Equal => match self.minor.cmp(&other.minor) {
+                Ordering::Equal => match self.patch.cmp(&other.patch) {
+                    Ordering::Equal => {
+                        match (&self.prerelease, &other.prerelease) {
+                            // Cannot compare versions at this point.
+                            (Some(_), Some(_)) => None,
+                            (Some(_), None) => Some(Ordering::Greater),
+                            (None, Some(_)) => Some(Ordering::Less),
+                            (None, None) => Some(Ordering::Equal),
+                        }
+                    }
+                    other => Some(other),
+                },
+                other => Some(other),
+            },
+            other => Some(other),
+        }
     }
 }
 
@@ -239,5 +262,29 @@ mod tests {
         for (s, v) in test_cases {
             assert_eq!(v, parse_version(s).unwrap());
         }
+    }
+
+    #[cfg(feature = "regex")]
+    #[test]
+    fn test_partial_ord_version() {
+        let test_cases = [
+            ("v2.1.0", "v3.1.0"),
+            ("v0.0.1", "v0.1"),
+            ("v0.1", "v1.0.1"),
+            ("v2.0.1", "v2.1.0"),
+            ("v2.1.1", "v3.0-rc1"),
+            ("v3.0-rc1", "v3.0.1"),
+            ("v3.0", "v3.0-rc1"),
+        ];
+        for (l, r) in test_cases {
+            let v1 = parse_version(l).unwrap();
+            let v2 = parse_version(r).unwrap();
+            assert!(v1 < v2);
+        }
+
+        // We cannot compare prerelease of the same version.
+        let v1 = parse_version("v2.0-rc1weirdstuff").unwrap();
+        let v2 = parse_version("v2.0-rc1weirderstuff").unwrap();
+        assert!(v1.partial_cmp(&v2).is_none());
     }
 }
