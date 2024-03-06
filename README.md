@@ -6,21 +6,21 @@ Current **Minimum Supported Rust Version**: v1.65.0
 /// HWI is the common Hardware Wallet Interface.
 #[async_trait]
 pub trait HWI: Debug {
-    /// Return the device kind
+    /// 0. Return the device kind
     fn device_kind(&self) -> DeviceKind;
-    /// Application version or OS version.
+    /// 1. Application version or OS version.
     async fn get_version(&self) -> Result<Version, Error>;
-    /// Get master fingerprint.
+    /// 2. Get master fingerprint.
     async fn get_master_fingerprint(&self) -> Result<Fingerprint, Error>;
-    /// Get the xpub with the given derivation path.
+    /// 3. Get the xpub with the given derivation path.
     async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, Error>;
-    /// Register a new wallet policy
+    /// 4. Register a new wallet policy
     async fn register_wallet(&self, name: &str, policy: &str) -> Result<Option<[u8; 32]>, Error>;
-    /// Returns true if the wallet is registered
-    async fn is_wallet_registered(&self, name: &str, policy: &str) -> Result<bool, HWIError>; 
-    /// Display an address on the device screen
+    /// 5. Returns true if the wallet is registered
+    async fn is_wallet_registered(&self, name: &str, policy: &str) -> Result<bool, HWIError>;
+    /// 6. Display an address on the device screen
     async fn display_address(&self, script: &AddressScript) -> Result<(), Error>;
-    /// Sign a partially signed bitcoin transaction (PSBT).
+    /// 7. Sign a partially signed bitcoin transaction (PSBT).
     async fn sign_tx(&self, tx: &mut Psbt) -> Result<(), Error>;
 }
 
@@ -37,17 +37,16 @@ pub enum AddressScript {
 
 A Empty case means the method is unimplemented on the client or device side.
 
-|                        | BitBox02[^1] | Coldcard[^2] | Ledger Nano S/S+[^3] | Specter[^4] |
-|----------------------- |--------------|------------- |----------------------|-------------|
-| get_version            |              | >= 6.2.1X    | >= v2.1.2            |             |
-| get_master_fingerprint | >= v9.15.0   | >= 6.2.1X    | >= v2.1.2            | >= v1.8.0   |
-| get_extended_pubkey    | >= v9.15.0   | >= 6.2.1X    | >= v2.1.2            | >= v1.8.0   |
-| register_wallet        | >= v9.15.0   | >= 6.2.1X    | >= v2.1.2            | >= v1.8.0   |
-| is_wallet_registered   | >= v9.15.0   | >= 6.2.1X    | *check hmac presence |             |
-| display_address        | >= v9.15.0   | >= 6.2.1X    | >= v2.1.2            |             |
-| sign_tx                | >= v9.15.0   | >= 6.2.1X    | >= v2.1.2            | >= v1.8.0   |
+| device               | 1          | 2          | 3          | 4          | 5                    | 6          | 7          |
+| -------------------- | ---------- | ---------- | ---------- | ---------- | -------------------- | ---------- | ---------- |
+| BitBox02[^1]         |            | >= v9.15.0 | >= v9.15.0 | >= v9.15.0 | >= v9.15.0           | >= v9.15.0 | >= v9.15.0 |
+| Coldcard[^2]         | >= v6.2.1X | >= v6.2.1X | >= v6.2.1X | >= v6.2.1X | >= v6.2.1X           | >= v6.2.1X | >= v6.2.1X |
+| Jade[^3]             | >= v1.0.30 | >= v1.0.30 | >= v1.0.30 | >= v1.0.30 |                      | >= v1.0.30 | >= v1.0.30 |
+| Ledger Nano S/S+[^4] | >= v2.1.2  | >= v2.1.2  | >= v2.1.2  | >= v2.1.2  | *check hmac presence | >= v2.1.2  | >= v2.1.2  |
+| Specter[^5]          |            | >= v1.8.0  | >= v1.8.0  | >= v1.8.0  |                      |            | >= v1.8.0  |
 
 [^1]: https://github.com/digitalbitbox/bitbox02-firmware
 [^2]: https://github.com/alfred-hodler/rust-coldcard
-[^3]: https://github.com/LedgerHQ/app-bitcoin-new  
-[^4]: https://github.com/cryptoadvance/specter-diy
+[^3]: https://github.com/Blockstream/Jade
+[^4]: https://github.com/LedgerHQ/app-bitcoin-new
+[^5]: https://github.com/cryptoadvance/specter-diy

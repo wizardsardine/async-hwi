@@ -2,7 +2,6 @@ use std::convert::TryFrom;
 use std::default::Default;
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::str::FromStr;
 
 use async_trait::async_trait;
 use bitcoin::{
@@ -10,7 +9,6 @@ use bitcoin::{
     psbt::Psbt,
 };
 use ledger_bitcoin_client::psbt::PartialSignature;
-use regex::Regex;
 
 use ledger_apdu::APDUAnswer;
 use ledger_transport_hidapi::TransportNativeHID;
@@ -57,7 +55,7 @@ impl<T: Transport> Ledger<T> {
         policy: &str,
         hmac: Option<[u8; 32]>,
     ) -> Result<Self, HWIError> {
-        let (descriptor_template, keys) = extract_keys_and_template(policy)?;
+        let (descriptor_template, keys) = utils::extract_keys_and_template::<WalletPubKey>(policy)?;
         let wallet = WalletPolicy::new(name.into(), WalletVersion::V2, descriptor_template, keys);
         self.options.wallet = Some((wallet, hmac));
         Ok(self)
@@ -113,7 +111,8 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
                     path.to_string().trim_start_matches('m'),
                     xpub
                 );
-                let (descriptor_template, keys) = extract_keys_and_template(&policy)?;
+                let (descriptor_template, keys) =
+                    utils::extract_keys_and_template::<WalletPubKey>(&policy)?;
                 let wallet =
                     WalletPolicy::new("".into(), WalletVersion::V2, descriptor_template, keys);
 
@@ -146,7 +145,7 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
         name: &str,
         policy: &str,
     ) -> Result<Option<[u8; 32]>, HWIError> {
-        let (descriptor_template, keys) = extract_keys_and_template(policy)?;
+        let (descriptor_template, keys) = utils::extract_keys_and_template::<WalletPubKey>(policy)?;
         let wallet = WalletPolicy::new(
             name.to_string(),
             WalletVersion::V2,
@@ -159,7 +158,8 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
 
     async fn is_wallet_registered(&self, name: &str, policy: &str) -> Result<bool, HWIError> {
         if let Some((wallet, hmac)) = &self.options.wallet {
-            let (descriptor_template, keys) = extract_keys_and_template(policy)?;
+            let (descriptor_template, keys) =
+                utils::extract_keys_and_template::<WalletPubKey>(policy)?;
             Ok(hmac.is_some()
                 && name == wallet.name
                 && descriptor_template == wallet.descriptor_template
@@ -191,31 +191,6 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
             // Ledger cannot sign without policy.
             Err(HWIError::UnimplementedMethod)
         }
-    }
-}
-
-pub fn extract_keys_and_template(policy: &str) -> Result<(String, Vec<WalletPubKey>), HWIError> {
-    let re = Regex::new(r"((\[.+?\])?[xyYzZtuUvV]pub[1-9A-HJ-NP-Za-km-z]{79,108})").unwrap();
-    let mut descriptor_template = policy.to_string();
-    let mut pubkeys_str: Vec<&str> = Vec::new();
-    for capture in re.find_iter(policy) {
-        if !pubkeys_str.contains(&capture.as_str()) {
-            pubkeys_str.push(capture.as_str());
-        }
-    }
-
-    let mut pubkeys: Vec<WalletPubKey> = Vec::new();
-    for (i, key_str) in pubkeys_str.iter().enumerate() {
-        descriptor_template = descriptor_template.replace(key_str, &format!("@{}", i));
-        let pubkey = WalletPubKey::from_str(key_str).map_err(|_| HWIError::UnsupportedInput)?;
-        pubkeys.push(pubkey);
-    }
-
-    // Do not include the hash in the descriptor template.
-    if let Some((descriptor_template, _hash)) = descriptor_template.rsplit_once('#') {
-        Ok((descriptor_template.to_string(), pubkeys))
-    } else {
-        Ok((descriptor_template, pubkeys))
     }
 }
 
@@ -336,26 +311,5 @@ impl<T: core::fmt::Debug> From<BitcoinClientError<T>> for HWIError {
             }
         };
         HWIError::Device(format!("{:#?}", e))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_extract_keys_and_template() {
-        let res = extract_keys_and_template("wsh(or_d(pk([f5acc2fd/49'/1'/0']tpubDCbK3Ysvk8HjcF6mPyrgMu3KgLiaaP19RjKpNezd8GrbAbNg6v5BtWLaCt8FNm6QkLseopKLf5MNYQFtochDTKHdfgG6iqJ8cqnLNAwtXuP/**),and_v(v:pkh(tpubDDtb2WPYwEWw2WWDV7reLV348iJHw2HmhzvPysKKrJw3hYmvrd4jasyoioVPdKGQqjyaBMEvTn1HvHWDSVqQ6amyyxRZ5YjpPBBGjJ8yu8S/**),older(100))))").unwrap();
-        assert_eq!(res.0, "wsh(or_d(pk(@0/**),and_v(v:pkh(@1/**),older(100))))");
-        assert_eq!(res.1.len(), 2);
-        assert_eq!(res.1[0].to_string(), "[f5acc2fd/49'/1'/0']tpubDCbK3Ysvk8HjcF6mPyrgMu3KgLiaaP19RjKpNezd8GrbAbNg6v5BtWLaCt8FNm6QkLseopKLf5MNYQFtochDTKHdfgG6iqJ8cqnLNAwtXuP".to_string());
-        assert_eq!(res.1[1].to_string(), "tpubDDtb2WPYwEWw2WWDV7reLV348iJHw2HmhzvPysKKrJw3hYmvrd4jasyoioVPdKGQqjyaBMEvTn1HvHWDSVqQ6amyyxRZ5YjpPBBGjJ8yu8S".to_string());
-
-        let res = extract_keys_and_template("wsh(or_d(multi(2,[b0822927/48'/1'/0'/2']tpubDEvZxV86Br8Knbm9tWcr5Hvmg5cYTYsg92vinqH6Bie6U8ix8CsoN9W11NQygdqVwmHUJpsHXxNsi5gXn36g4xNfLWkMqPuFhRZAmMQ7jjQ/<0;1>/*,[7fc39c07/48'/1'/0'/2']tpubDEvjgXtrUuH3Qtkapny9aE8gN847xiXsf9MDM5XueGf9nrvStqAuBSva3ajGyTvtp8Ti55FvVXsgYSXuS1tQkBeopFuodx2hRUDmQbvKxbZ/<0;1>/*),and_v(v:thresh(2,pkh([b0822927/48'/1'/0'/2']tpubDEvZxV86Br8Knbm9tWcr5Hvmg5cYTYsg92vinqH6Bie6U8ix8CsoN9W11NQygdqVwmHUJpsHXxNsi5gXn36g4xNfLWkMqPuFhRZAmMQ7jjQ/<2;3>/*),a:pkh([7fc39c07/48'/1'/0'/2']tpubDEvjgXtrUuH3Qtkapny9aE8gN847xiXsf9MDM5XueGf9nrvStqAuBSva3ajGyTvtp8Ti55FvVXsgYSXuS1tQkBeopFuodx2hRUDmQbvKxbZ/<2;3>/*),a:pkh([1a1ffd98/48'/1'/0'/2']tpubDFZqzTvGijYb13BC73CkS1er8DrP5YdzMhziN3kWCKUFaW51Yj6ggvf99YpdrkTJy4RT85mxQMHXDiFAKRxzf6BykQgT4pRRBNPshSJJcKo/<0;1>/*)),older(300))))#wp0w3hlw").unwrap();
-        assert_eq!(res.0, "wsh(or_d(multi(2,@0/<0;1>/*,@1/<0;1>/*),and_v(v:thresh(2,pkh(@0/<2;3>/*),a:pkh(@1/<2;3>/*),a:pkh(@2/<0;1>/*)),older(300))))");
-        assert_eq!(res.1.len(), 3);
-        assert_eq!(res.1[0].to_string(), "[b0822927/48'/1'/0'/2']tpubDEvZxV86Br8Knbm9tWcr5Hvmg5cYTYsg92vinqH6Bie6U8ix8CsoN9W11NQygdqVwmHUJpsHXxNsi5gXn36g4xNfLWkMqPuFhRZAmMQ7jjQ".to_string());
-        assert_eq!(res.1[1].to_string(), "[7fc39c07/48'/1'/0'/2']tpubDEvjgXtrUuH3Qtkapny9aE8gN847xiXsf9MDM5XueGf9nrvStqAuBSva3ajGyTvtp8Ti55FvVXsgYSXuS1tQkBeopFuodx2hRUDmQbvKxbZ".to_string());
-        assert_eq!(res.1[2].to_string(), "[1a1ffd98/48'/1'/0'/2']tpubDFZqzTvGijYb13BC73CkS1er8DrP5YdzMhziN3kWCKUFaW51Yj6ggvf99YpdrkTJy4RT85mxQMHXDiFAKRxzf6BykQgT4pRRBNPshSJJcKo".to_string());
     }
 }
