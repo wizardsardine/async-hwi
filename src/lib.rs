@@ -169,7 +169,7 @@ impl std::fmt::Display for Version {
 
 /// DeviceType is the result of the following process:
 /// If it is talking like a Duck© hardware wallet it is a Duck© hardware wallet.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DeviceKind {
     BitBox02,
     Coldcard,
