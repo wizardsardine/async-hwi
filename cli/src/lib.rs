@@ -2,6 +2,7 @@ pub mod command {
     use async_hwi::{
         bitbox::{api::runtime, BitBox02, PairingBitbox02WithLocalCache},
         coldcard,
+        jade::{self, Jade},
         ledger::{HidApi, Ledger, LedgerSimulator, TransportHID},
         specter::{Specter, SpecterSimulator},
         HWI,
@@ -11,7 +12,7 @@ pub mod command {
 
     pub struct Wallet<'a> {
         pub name: Option<&'a String>,
-        pub policy: &'a String,
+        pub policy: Option<&'a String>,
         pub hmac: Option<&'a String>,
     }
 
@@ -28,6 +29,25 @@ pub mod command {
         if let Ok(devices) = Specter::enumerate().await {
             for device in devices {
                 hws.push(device.into());
+            }
+        }
+
+        match Jade::enumerate().await {
+            Err(e) => println!("{:?}", e),
+            Ok(devices) => {
+                for device in devices {
+                    let device = device.with_network(network);
+                    if let Ok(info) = device.get_info().await {
+                        if info.jade_state == jade::api::JadeState::Locked {
+                            if let Err(e) = device.auth().await {
+                                eprintln!("auth {:?}", e);
+                                continue;
+                            }
+                        }
+
+                        hws.push(device.into());
+                    }
+                }
             }
         }
 
@@ -48,8 +68,8 @@ pub mod command {
                     {
                         if let Ok((device, _)) = device.wait_confirm().await {
                             let mut bb02 = BitBox02::from(device).with_network(network);
-                            if let Some(ref wallet) = wallet {
-                                bb02 = bb02.with_policy(wallet.policy)?;
+                            if let Some(ref policy) = wallet.as_ref().map(|w| w.policy).flatten() {
+                                bb02 = bb02.with_policy(policy)?;
                             }
                             hws.push(bb02.into());
                         }
@@ -92,7 +112,9 @@ pub mod command {
                         wallet
                             .name
                             .ok_or::<Box<dyn Error>>("ledger requires a wallet name".into())?,
-                        wallet.policy,
+                        wallet
+                            .policy
+                            .ok_or::<Box<dyn Error>>("ledger requires a wallet policy".into())?,
                         hmac,
                     )?;
                 }

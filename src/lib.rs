@@ -3,6 +3,8 @@ pub mod bip389;
 pub mod bitbox;
 #[cfg(feature = "coldcard")]
 pub mod coldcard;
+#[cfg(feature = "jade")]
+pub mod jade;
 #[cfg(feature = "ledger")]
 pub mod ledger;
 #[cfg(feature = "specter")]
@@ -175,6 +177,7 @@ pub enum DeviceKind {
     SpecterSimulator,
     Ledger,
     LedgerSimulator,
+    Jade,
 }
 
 impl std::fmt::Display for DeviceKind {
@@ -186,6 +189,7 @@ impl std::fmt::Display for DeviceKind {
             DeviceKind::SpecterSimulator => write!(f, "specter-simulator"),
             DeviceKind::Ledger => write!(f, "ledger"),
             DeviceKind::LedgerSimulator => write!(f, "ledger-simulator"),
+            DeviceKind::Jade => write!(f, "jade"),
         }
     }
 }
@@ -200,6 +204,7 @@ impl std::str::FromStr for DeviceKind {
             "specter-simulator" => Ok(DeviceKind::SpecterSimulator),
             "ledger" => Ok(DeviceKind::Ledger),
             "ledger-simulator" => Ok(DeviceKind::LedgerSimulator),
+            "jade" => Ok(DeviceKind::Jade),
             _ => Err(()),
         }
     }

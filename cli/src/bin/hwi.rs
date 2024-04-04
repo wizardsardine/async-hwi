@@ -67,7 +67,7 @@ enum PsbtCommands {
         #[arg(long)]
         wallet_name: Option<String>,
         #[arg(long)]
-        wallet_policy: String,
+        wallet_policy: Option<String>,
         #[arg(long)]
         hmac: Option<String>,
     },
@@ -113,7 +113,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     args.network,
                     Some(command::Wallet {
                         name: wallet_name.as_ref(),
-                        policy: &policy,
+                        policy: Some(&policy),
                         hmac: hmac.as_ref(),
                     }),
                 )
@@ -148,7 +148,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
         Commands::Device(DeviceCommands::List) => {
             for device in command::list(args.network, None).await? {
-                eprint!("{}", device.get_master_fingerprint().await?,);
+                eprint!("{}", device.get_master_fingerprint().await?);
                 eprint!(" {}", device.device_kind());
                 if let Ok(version) = device.get_version().await.map(|v| v.to_string()) {
                     eprint!(" {}", version);
@@ -187,9 +187,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
                 let (name, policy) = match device.device_kind() {
-                    DeviceKind::Ledger | DeviceKind::LedgerSimulator | DeviceKind::Coldcard => {
-                        (name.clone().expect("name is required"), policy.clone())
-                    }
+                    DeviceKind::Ledger
+                    | DeviceKind::LedgerSimulator
+                    | DeviceKind::Coldcard
+                    | DeviceKind::Jade => (name.clone().expect("name is required"), policy.clone()),
                     _ => ("".into(), policy.clone()),
                 };
                 let res = device.is_wallet_registered(&name, &policy).await?;
@@ -206,7 +207,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 args.network,
                 Some(command::Wallet {
                     name: wallet_name.as_ref(),
-                    policy: &wallet_policy,
+                    policy: wallet_policy.as_ref(),
                     hmac: hmac.as_ref(),
                 }),
             )
