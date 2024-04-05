@@ -2,7 +2,7 @@
 name = "async-hwi-cli"
 readme = "README.md"
 description = "HWI CLI"
-version = "0.0.14"
+version = "0.0.17"
 license-file.workspace = true
 edition.workspace = true
 authors.workspace = true
