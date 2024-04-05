@@ -1,4 +1,4 @@
-use crate::{bip389, AddressScript, DeviceKind, Error as HWIError, HWI};
+use crate::{bip389, parse_version, AddressScript, DeviceKind, Error as HWIError, HWI};
 use api::btc::make_script_config_simple;
 use async_trait::async_trait;
 use bitbox_api::{
@@ -171,7 +171,12 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
     }
 
     async fn get_version(&self) -> Result<super::Version, HWIError> {
-        Err(HWIError::UnimplementedMethod)
+        let info = self
+            .client
+            .device_info()
+            .await
+            .map_err(|e| HWIError::Device(e.to_string()))?;
+        Ok(parse_version(&info.version)?)
     }
 
     async fn get_master_fingerprint(&self) -> Result<Fingerprint, HWIError> {
