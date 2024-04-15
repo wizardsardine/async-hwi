@@ -34,6 +34,19 @@ impl<T> Response<T> {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+#[repr(i32)]
+pub enum ErrorCode {
+    InvalidRequest = -32600,
+    UnknownMethod = -32601,
+    BadParameters = -32602,
+    InternalError = -32603,
+    UserCancelled = -32000,
+    ProtocolError = -32001,
+    HwLocked = -32002,
+    NetworkMismatch = -32003,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Error {
     pub code: i32,

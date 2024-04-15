@@ -505,9 +505,6 @@ impl std::fmt::Display for TransportError {
 
 #[derive(Debug)]
 pub enum JadeError {
-    DeviceNotFound,
-    DeviceDidNotSign,
-    UserCancelled,
     Transport(TransportError),
     Rpc(api::Error),
     PinServer(pinserver::Error),
@@ -529,11 +526,8 @@ impl From<pinserver::Error> for JadeError {
 impl std::fmt::Display for JadeError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::DeviceNotFound => write!(f, "Jade not found"),
-            Self::DeviceDidNotSign => write!(f, "Jade did not sign the psbt"),
             Self::Transport(e) => write!(f, "{}", e),
             Self::Rpc(e) => write!(f, "{:?}", e),
-            Self::UserCancelled => write!(f, "User cancelled operation"),
             Self::PinServer(e) => write!(f, "{:?}", e),
             Self::HandShakeRefused => write!(f, "Handshake with pinserver refused"),
         }
@@ -543,12 +537,17 @@ impl std::fmt::Display for JadeError {
 impl From<JadeError> for HWIError {
     fn from(e: JadeError) -> HWIError {
         match e {
-            JadeError::DeviceNotFound => HWIError::DeviceNotFound,
-            JadeError::DeviceDidNotSign => HWIError::DeviceDidNotSign,
             JadeError::Transport(e) => HWIError::Device(e.to_string()),
-            JadeError::Rpc(e) => HWIError::Device(format!("{:?}", e)),
+            JadeError::Rpc(e) => {
+                if e.code == api::ErrorCode::UserCancelled as i32 {
+                    HWIError::UserRefused
+                } else if e.code == api::ErrorCode::NetworkMismatch as i32 {
+                    HWIError::NetworkMismatch
+                } else {
+                    HWIError::Device(format!("{:?}", e))
+                }
+            }
             JadeError::PinServer(e) => HWIError::Device(format!("{:?}", e)),
-            JadeError::UserCancelled => HWIError::UserRefused,
             JadeError::HandShakeRefused => {
                 HWIError::Device("Handshake with pinserver refused".to_string())
             }
