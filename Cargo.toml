@@ -10,7 +10,7 @@ keywords = ["bitcoin"]
 
 [package]
 name = "async-hwi"
-version = "0.0.17"
+version = "0.0.18"
 readme = "README.md"
 description = "Async hardware wallet interface"
 license-file.workspace = true
@@ -50,7 +50,7 @@ prost-derive = { version = "=0.12.2", optional = true }
 zeroize = { version = "=1.7.0", optional = true }
 
 # coldcard
-coldcard = { version = "0.12.1", optional = true }
+coldcard = { version = "0.12.2", optional = true }
 
 # ledger
 ledger_bitcoin_client = { version = "0.4.1", optional = true }
