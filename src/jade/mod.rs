@@ -156,11 +156,11 @@ impl<T: Transport + Sync + Send> HWI for Jade<T> {
     }
 
     async fn get_master_fingerprint(&self) -> Result<Fingerprint, HWIError> {
-        let xpub = self.get_extended_pubkey(&DerivationPath::master()).await?;
+        let xpub = self.get_extended_pubkey(&DerivationPath::master(), false).await?;
         Ok(xpub.fingerprint())
     }
 
-    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, HWIError> {
+    async fn get_extended_pubkey(&self, path: &DerivationPath, _: bool) -> Result<Xpub, HWIError> {
         let s: String = self
             .transport
             .request(

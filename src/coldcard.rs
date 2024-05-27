@@ -63,7 +63,7 @@ impl HWI for Coldcard {
         Ok(xpub.fingerprint())
     }
 
-    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, HWIError> {
+    async fn get_extended_pubkey(&self, path: &DerivationPath, _: bool) -> Result<Xpub, HWIError> {
         let path = coldcard::protocol::DerivationPath::new(&path.to_string())
             .map_err(|e| HWIError::InvalidParameter("path", format!("{:?}", e)))?;
         let s = self.device()?.xpub(Some(path))?;
