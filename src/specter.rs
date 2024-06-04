@@ -137,6 +137,10 @@ impl<T: Transport + Sync + Send> HWI for Specter<T> {
                     .tap_script_sigs
                     .append(&mut new_psbt.inputs[i].tap_script_sigs)
             }
+            if new_psbt.inputs[i].tap_key_sig.is_some() {
+                has_signed = true;
+                psbt.inputs[i].tap_key_sig = new_psbt.inputs[i].tap_key_sig;
+            }
         }
 
         if !has_signed {
