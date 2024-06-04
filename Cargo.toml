@@ -10,7 +10,7 @@ keywords = ["bitcoin"]
 
 [package]
 name = "async-hwi"
-version = "0.0.18"
+version = "0.0.19"
 readme = "README.md"
 description = "Async hardware wallet interface"
 license-file.workspace = true
