@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use bitcoin::{
     bip32::{DerivationPath, Fingerprint, Xpub},
@@ -8,9 +9,11 @@ use bitcoin::{
 };
 
 use serialport::{available_ports, SerialPortType};
-use tokio::io::AsyncBufReadExt;
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
-pub use tokio::net::TcpStream;
+use tokio::{
+    io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt},
+    net::TcpStream,
+    sync::Mutex,
+};
 use tokio_serial::SerialPortBuilderExt;
 pub use tokio_serial::SerialStream;
 
@@ -239,17 +242,17 @@ impl SpecterSimulator {
 }
 
 impl Specter<SerialTransport> {
-    pub fn new(port_name: String) -> Self {
-        let transport = SerialTransport { port_name };
-        Self {
+    pub fn new(port_name: String) -> Result<Self, SpecterError> {
+        let transport = SerialTransport::new(port_name)?;
+        Ok(Self {
             transport,
             kind: DeviceKind::Specter,
-        }
+        })
     }
     pub async fn enumerate() -> Result<Vec<Self>, SpecterError> {
         let mut res = Vec::new();
         for port_name in SerialTransport::enumerate_potential_ports()? {
-            let specter = Specter::<SerialTransport>::new(port_name);
+            let specter = Specter::<SerialTransport>::new(port_name)?;
             if specter.get_master_fingerprint().await.is_ok() {
                 res.push(specter);
             }
@@ -260,12 +263,21 @@ impl Specter<SerialTransport> {
 
 #[derive(Debug)]
 pub struct SerialTransport {
-    port_name: String,
+    stream: Arc<Mutex<SerialStream>>,
 }
 
 impl SerialTransport {
     pub const SPECTER_VID: u16 = 61525;
     pub const SPECTER_PID: u16 = 38914;
+
+    pub fn new(port_name: String) -> Result<Self, SpecterError> {
+        let stream = tokio_serial::new(port_name, 9600)
+            .open_native_async()
+            .map_err(|e| SpecterError::Device(e.to_string()))?;
+        Ok(Self {
+            stream: Arc::new(Mutex::new(stream)),
+        })
+    }
 
     pub fn enumerate_potential_ports() -> Result<Vec<String>, SpecterError> {
         match available_ports() {
@@ -293,13 +305,15 @@ impl SerialTransport {
     }
 }
 
+async fn exchange_serial(transport: &mut SerialStream, req: &str) -> Result<String, SpecterError> {
+    exchange(transport, req).await
+}
+
 #[async_trait]
 impl Transport for SerialTransport {
     async fn request(&self, req: &str) -> Result<String, SpecterError> {
-        let mut transport = tokio_serial::new(self.port_name.clone(), 9600)
-            .open_native_async()
-            .map_err(|e| SpecterError::Device(e.to_string()))?;
-        exchange(&mut transport, req).await
+        let mut transport = self.stream.lock().await;
+        exchange_serial(&mut transport, req).await
     }
 }
 

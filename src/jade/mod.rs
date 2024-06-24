@@ -5,6 +5,7 @@ use std::{
     collections::BTreeMap,
     fmt::Debug,
     str::FromStr,
+    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -17,7 +18,10 @@ use bitcoin::{
 };
 
 use serialport::{available_ports, SerialPort, SerialPortType};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::{
+    io::{AsyncRead, AsyncReadExt, AsyncWriteExt},
+    sync::Mutex,
+};
 use tokio_serial::SerialPortBuilderExt;
 
 pub use tokio_serial::SerialStream;
@@ -318,13 +322,12 @@ impl<T: 'static + Transport + Sync + Send> From<Jade<T>> for Box<dyn HWI + Send>
     }
 }
 
-async fn exchange<T, S, D>(
-    transport: &mut T,
+async fn exchange<S, D>(
+    transport: &mut SerialStream,
     method: &str,
     params: Option<S>,
 ) -> Result<api::Response<D>, JadeError>
 where
-    T: Unpin + AsyncRead + AsyncWrite,
     S: Serialize + Unpin,
     D: DeserializeOwned + Unpin,
 {
@@ -395,7 +398,7 @@ impl Jade<SerialTransport> {
     pub async fn enumerate() -> Result<Vec<Self>, JadeError> {
         let mut res = Vec::new();
         for port_name in SerialTransport::enumerate_potential_ports()? {
-            let jade = Jade::<SerialTransport>::new(SerialTransport { port_name });
+            let jade = Jade::<SerialTransport>::new(SerialTransport::new(port_name)?);
             jade.ping().await?;
             res.push(jade);
         }
@@ -405,7 +408,7 @@ impl Jade<SerialTransport> {
 
 #[derive(Debug)]
 pub struct SerialTransport {
-    pub port_name: String,
+    pub stream: Arc<Mutex<SerialStream>>,
 }
 
 pub const JADE_DEVICE_IDS: [(u16, u16); 4] = [
@@ -416,8 +419,21 @@ pub const JADE_DEVICE_IDS: [(u16, u16); 4] = [
 ];
 
 impl SerialTransport {
-    pub fn new(port_name: String) -> Self {
-        Self { port_name }
+    pub fn new(port_name: String) -> Result<Self, TransportError> {
+        let mut transport = tokio_serial::new(port_name, DEFAULT_JADE_BAUD_RATE)
+            .open_native_async()
+            .map_err(TransportError::from)?;
+        // Ensure RTS and DTR are not set (as this can cause the hw to reboot)
+        // according to https://github.com/Blockstream/Jade/blob/master/jadepy/jade_serial.py#L56
+        transport
+            .write_request_to_send(false)
+            .map_err(TransportError::from)?;
+        transport
+            .write_data_terminal_ready(false)
+            .map_err(TransportError::from)?;
+        Ok(Self {
+            stream: Arc::new(Mutex::new(transport)),
+        })
     }
     pub fn enumerate_potential_ports() -> Result<Vec<String>, JadeError> {
         match available_ports() {
@@ -449,18 +465,8 @@ impl Transport for SerialTransport {
         method: &str,
         params: Option<S>,
     ) -> Result<api::Response<D>, JadeError> {
-        let mut transport = tokio_serial::new(self.port_name.clone(), DEFAULT_JADE_BAUD_RATE)
-            .open_native_async()
-            .map_err(|e| JadeError::Transport(e.into()))?;
-        // Ensure RTS and DTR are not set (as this can cause the hw to reboot)
-        // according to https://github.com/Blockstream/Jade/blob/master/jadepy/jade_serial.py#L56
-        transport
-            .write_request_to_send(false)
-            .map_err(TransportError::from)?;
-        transport
-            .write_data_terminal_ready(false)
-            .map_err(TransportError::from)?;
-        exchange(&mut transport, method, params).await
+        let mut stream = self.stream.lock().await;
+        exchange(&mut stream, method, params).await
     }
 }
 
