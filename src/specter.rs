@@ -4,6 +4,7 @@ use std::str::FromStr;
 use bitcoin::{
     bip32::{DerivationPath, Fingerprint, Xpub},
     psbt::Psbt,
+    taproot,
 };
 
 use serialport::{available_ports, SerialPortType};
@@ -140,9 +141,19 @@ impl<T: Transport + Sync + Send> HWI for Specter<T> {
             if new_psbt.inputs[i].tap_key_sig.is_some() {
                 has_signed = true;
                 psbt.inputs[i].tap_key_sig = new_psbt.inputs[i].tap_key_sig;
+            } else {
+                // Specter does not populate PSBT_TAP_KEY_SIG at v1.9.0
+                // see https://github.com/cryptoadvance/specter-diy/issues/277#issuecomment-2183906271
+                if let Some(witness) = &new_psbt.inputs[i].final_script_witness {
+                    if let Some(sig) = witness.nth(0) {
+                        if let Ok(sig) = taproot::Signature::from_slice(sig) {
+                            psbt.inputs[i].tap_key_sig = Some(sig);
+                            has_signed = true;
+                        }
+                    }
+                }
             }
         }
-
         if !has_signed {
             return Err(SpecterError::DeviceDidNotSign.into());
         }
