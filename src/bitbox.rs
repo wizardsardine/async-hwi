@@ -188,7 +188,7 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
         Ok(Fingerprint::from_str(&fg).map_err(|e| HWIError::Device(e.to_string()))?)
     }
 
-    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, HWIError> {
+    async fn get_extended_pubkey(&self, path: &DerivationPath, _: bool) -> Result<Xpub, HWIError> {
         let fg = self
             .client
             .btc_xpub(

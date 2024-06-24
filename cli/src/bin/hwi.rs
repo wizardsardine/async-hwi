@@ -163,7 +163,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         continue;
                     }
                 }
-                eprintln!("{}", device.get_extended_pubkey(&path).await?);
+                let response = device.get_extended_pubkey(&path, false).await;
+                match response {
+                    Ok(r) => eprintln!("{}", r),
+                    Err(e) => {
+                        if device.device_kind() == DeviceKind::Ledger {
+                            eprintln!("{}", device.get_extended_pubkey(&path, true).await?);
+                        } else {
+                            eprintln!("{}", e);
+                        }
+                    }
+                }
             }
         }
         Commands::Wallet(WalletCommands::Register { name, policy }) => {

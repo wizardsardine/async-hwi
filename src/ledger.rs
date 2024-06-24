@@ -90,11 +90,12 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
         Ok(self.client.get_master_fingerprint().await?)
     }
 
-    async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, HWIError> {
-        Ok(self
-            .client
-            .get_extended_pubkey(path, self.options.display_xpub)
-            .await?)
+    async fn get_extended_pubkey(
+        &self,
+        path: &DerivationPath,
+        display_mode: bool,
+    ) -> Result<Xpub, HWIError> {
+        Ok(self.client.get_extended_pubkey(path, display_mode).await?)
     }
 
     async fn display_address(&self, script: &AddressScript) -> Result<(), HWIError> {
@@ -104,7 +105,7 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
                 let (hardened_children, normal_children) = children.split_at(3);
                 let path = DerivationPath::from(hardened_children);
                 let fg = self.get_master_fingerprint().await?;
-                let xpub = self.get_extended_pubkey(&path).await?;
+                let xpub = self.get_extended_pubkey(&path, false).await?;
                 let policy = format!(
                     "tr([{}{}]{}/**)",
                     fg,
