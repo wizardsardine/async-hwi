@@ -284,7 +284,6 @@ impl SerialTransport {
             Ok(ports) => Ok(ports
                 .into_iter()
                 .filter_map(|p| match p.port_type {
-                    SerialPortType::PciPort => Some(p.port_name),
                     SerialPortType::UsbPort(info) => {
                         if info.vid == SerialTransport::SPECTER_VID
                             && info.pid == SerialTransport::SPECTER_PID
