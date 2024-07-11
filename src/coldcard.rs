@@ -130,7 +130,10 @@ impl HWI for Coldcard {
                 .append(&mut new_psbt.inputs[i].partial_sigs);
             psbt.inputs[i]
                 .tap_script_sigs
-                .append(&mut new_psbt.inputs[i].tap_script_sigs)
+                .append(&mut new_psbt.inputs[i].tap_script_sigs);
+            if let Some(sig) = new_psbt.inputs[i].tap_key_sig {
+                psbt.inputs[i].tap_key_sig = Some(sig);
+            }
         }
 
         Ok(())
