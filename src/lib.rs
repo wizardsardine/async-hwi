@@ -105,7 +105,13 @@ pub struct Version {
 pub fn parse_version(s: &str) -> Result<Version, Error> {
     // Regex from https://semver.org/ with patch group marked as optional
     let re = regex::Regex::new(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$").unwrap();
-    if let Some(captures) = re.captures(s.trim_start_matches('v').trim_end_matches('X')) {
+    if let Some(captures) = re.captures(
+        s.trim_start_matches('v')
+            // Coldcard Q does not follow semver format
+            .trim_end_matches("QX")
+            // Coldcard mk4 does not follow semver format
+            .trim_end_matches('X'),
+    ) {
         let major = if let Some(s) = captures.get(1) {
             u32::from_str(s.as_str()).map_err(|_| Error::UnsupportedVersion)?
         } else {
@@ -262,6 +268,15 @@ mod tests {
                     major: 6,
                     minor: 2,
                     patch: 1,
+                    prerelease: None,
+                },
+            ),
+            (
+                "6.3.3QX",
+                Version {
+                    major: 6,
+                    minor: 3,
+                    patch: 3,
                     prerelease: None,
                 },
             ),
