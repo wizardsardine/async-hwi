@@ -14,6 +14,7 @@ use bitcoin::{
 };
 use regex::Regex;
 use std::{
+    convert::TryFrom,
     str::FromStr,
     sync::{Arc, Mutex},
 };
@@ -197,7 +198,8 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
                 } else {
                     pb::BtcCoin::Tbtc
                 },
-                &Keypath::from(path),
+                &Keypath::try_from(path.to_string().as_str())
+                    .expect("Must be a bip32 derivation path"),
                 if self.network == bitcoin::Network::Bitcoin {
                     pb::btc_pub_request::XPubType::Xpub
                 } else {
@@ -220,7 +222,8 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
                         } else {
                             pb::BtcCoin::Tbtc
                         },
-                        &Keypath::from(path),
+                        &Keypath::try_from(path.to_string().as_str())
+                            .expect("Must be a bip32 derivation path"),
                         &make_script_config_simple(pb::btc_script_config::SimpleType::P2tr),
                         true,
                     )
@@ -268,7 +271,8 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
                         } else {
                             pb::BtcCoin::Tbtc
                         },
-                        &Keypath::from(&path),
+                        &Keypath::try_from(path.to_string().as_str())
+                            .expect("Must be a bip32 derivation path"),
                         &policy.into(),
                         true,
                     )
@@ -332,20 +336,25 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
                 }
                 Some(pb::BtcScriptConfigWithKeypath {
                     script_config: Some(policy.into()),
-                    keypath: Keypath::from(&path).to_vec(),
+                    keypath: path.to_u32_vec(),
                 })
             } else {
                 None
             };
 
+        let mut psbt_32 =
+            bitcoin_32::Psbt::from_str(&psbt.to_string()).expect("Must be a correct psbt");
+
         self.client
             .btc_sign_psbt(
                 coin_from_network(self.network),
-                psbt,
+                &mut psbt_32,
                 policy,
                 pb::btc_sign_init_request::FormatUnit::Default,
             )
             .await?;
+
+        *psbt = Psbt::from_str(&psbt_32.to_string()).expect("Must be a correct psbt");
 
         Ok(())
     }
@@ -497,9 +506,14 @@ pub struct KeyInfo {
 impl From<KeyInfo> for KeyOriginInfo {
     fn from(info: KeyInfo) -> KeyOriginInfo {
         KeyOriginInfo {
-            root_fingerprint: info.master_fingerprint,
-            keypath: info.path.as_ref().map(Keypath::from),
-            xpub: info.xpub,
+            root_fingerprint: info
+                .master_fingerprint
+                .map(|fg| bitcoin_32::bip32::Fingerprint::from(fg.to_bytes())),
+            keypath: info.path.as_ref().map(|path| {
+                Keypath::try_from(path.to_string().as_str())
+                    .expect("Must be a bip32 derivation path")
+            }),
+            xpub: bitcoin_32::bip32::Xpub::from_str(&info.xpub.to_string()).expect("Correct xpub"),
         }
     }
 }

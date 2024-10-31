@@ -10,7 +10,7 @@ keywords = ["bitcoin"]
 
 [package]
 name = "async-hwi"
-version = "0.0.23"
+version = "0.0.24"
 readme = "README.md"
 description = "Async hardware wallet interface"
 license-file.workspace = true
@@ -30,7 +30,8 @@ regex = ["dep:regex"]
 [dependencies]
 async-trait = "0.1.52"
 futures = "0.3"
-bitcoin = { version = "0.31", default-features = false, features = ["base64", "serde", "std"] }
+bitcoin = { package = "bitcoin", version = "0.31", default-features = false, features = ["base64", "serde", "std"] }
+bitcoin_32 = { package = "bitcoin", version = "0.32", default-features = false, features = ["base64", "serde", "std"] }
 
 # specter & jade
 tokio-serial = { version = "5.4.1", optional = true }
@@ -43,7 +44,7 @@ serde_cbor = { version = "0.11", optional = true }
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] , optional = true}
 
 # bitbox
-bitbox-api = { version = "0.2.3", default-features = false, features = ["usb", "tokio", "multithreaded"], optional = true }
+bitbox-api = { version = "0.6.0", default-features = false, features = ["usb", "tokio", "multithreaded"], optional = true }
 
 # coldcard
 coldcard = { version = "0.12.2", optional = true }
