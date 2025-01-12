@@ -411,13 +411,14 @@ pub struct SerialTransport {
     pub stream: Arc<Mutex<SerialStream>>,
 }
 
-pub const JADE_DEVICE_IDS: [(u16, u16); 6] = [
+pub const JADE_DEVICE_IDS: [(u16, u16); 7] = [
     (0x10c4, 0xea60),
     (0x1a86, 0x55d4),
     (0x0403, 0x6001),
     (0x1a86, 0x7523),
     (0x303a, 0x4001),
     (0x303a, 0x1001),
+    (0x1a86, 0x7523), // Jade DIY
 ];
 
 impl SerialTransport {
