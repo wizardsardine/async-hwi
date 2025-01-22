@@ -30,7 +30,7 @@ regex = ["dep:regex"]
 [dependencies]
 async-trait = "0.1.52"
 futures = "0.3"
-bitcoin = { package = "bitcoin", version = "0.32", default-features = false, features = ["base64", "serde", "std"] }
+bitcoin = { version = "0.32", default-features = false, features = ["base64", "serde", "std"] }
 
 # specter & jade
 tokio-serial = { version = "5.4.1", optional = true }
