@@ -2,7 +2,7 @@
 name = "async-hwi-cli"
 readme = "README.md"
 description = "HWI CLI"
-version = "0.0.20"
+version = "0.0.21"
 license-file.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -16,5 +16,5 @@ path = "src/bin/hwi.rs"
 clap = { version = "4.4.7", features = ["derive"] }
 bitcoin = "0.32"
 hex = "0.4"
-async-hwi = { path = "../", version = "0.0.26" }
+async-hwi = { path = "../", version = "0.0.27" }
 tokio = { version = "1", features = ["macros", "net", "rt", "rt-multi-thread", "io-util", "sync"] }
