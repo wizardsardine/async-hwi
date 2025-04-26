@@ -8,7 +8,7 @@ use bitcoin::{
     taproot,
 };
 
-use serialport::{available_ports, SerialPortType};
+use serialport::{available_ports, SerialPort, SerialPortType};
 use tokio::{
     io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt},
     net::TcpStream,
@@ -271,8 +271,11 @@ impl SerialTransport {
     pub const SPECTER_PID: u16 = 38914;
 
     pub fn new(port_name: String) -> Result<Self, SpecterError> {
-        let stream = tokio_serial::new(port_name, 9600)
+        let mut stream = tokio_serial::new(port_name, 9600)
             .open_native_async()
+            .map_err(|e| SpecterError::Device(e.to_string()))?;
+        stream
+            .write_data_terminal_ready(true)
             .map_err(|e| SpecterError::Device(e.to_string()))?;
         Ok(Self {
             stream: Arc::new(Mutex::new(stream)),
