@@ -1,6 +1,6 @@
 # async-hwi
 
-Current **Minimum Supported Rust Version**: v1.71.1
+Current **Minimum Supported Rust Version**: v1.81
 
 ```rust
 /// HWI is the common Hardware Wallet Interface.
