@@ -97,6 +97,10 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
             .await?)
     }
 
+    async fn get_extended_pubkey_display(&self, path: &DerivationPath) -> Result<Xpub, HWIError> {
+        Ok(self.client.get_extended_pubkey(path, true).await?)
+    }
+
     async fn display_address(&self, script: &AddressScript) -> Result<(), HWIError> {
         match script {
             AddressScript::P2TR(path) => {
