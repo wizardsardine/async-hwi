@@ -68,7 +68,7 @@ pub mod command {
                     {
                         if let Ok((device, _)) = device.wait_confirm().await {
                             let mut bb02 = BitBox02::from(device).with_network(network);
-                            if let Some(ref policy) = wallet.as_ref().map(|w| w.policy).flatten() {
+                            if let Some(policy) = wallet.as_ref().and_then(|w| w.policy) {
                                 bb02 = bb02.with_policy(policy)?;
                             }
                             hws.push(bb02.into());
