@@ -26,7 +26,10 @@ use ledger_bitcoin_client::{
     WalletPolicy, WalletPubKey,
 };
 
-use crate::{parse_version, utils, AddressScript, DeviceKind, Error as HWIError, HWI};
+use crate::{
+    parse_version, utils, AddressScript, DeviceKind, Error as HWIError, CHANGE_INDEX, HWI,
+    RECV_INDEX,
+};
 
 pub use hidapi::{DeviceInfo, HidApi};
 pub use ledger_bitcoin_client::async_client::Transport;
@@ -111,11 +114,14 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
                 let wallet =
                     WalletPolicy::new("".into(), WalletVersion::V2, descriptor_template, keys);
 
+                if ![RECV_INDEX, CHANGE_INDEX].contains(&normal_children[0]) {
+                    return Err(HWIError::Bip86ChangeIndex);
+                }
                 self.client
                     .get_wallet_address(
                         &wallet,
                         None,
-                        normal_children[0] == ChildNumber::from_normal_idx(0).unwrap(),
+                        normal_children[0] == CHANGE_INDEX,
                         normal_children[1].into(),
                         true,
                     )
