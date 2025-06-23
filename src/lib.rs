@@ -13,11 +13,14 @@ pub mod utils;
 
 use async_trait::async_trait;
 use bitcoin::{
-    bip32::{DerivationPath, Fingerprint, Xpub},
+    bip32::{ChildNumber, DerivationPath, Fingerprint, Xpub},
     psbt::Psbt,
 };
 
 use std::{cmp::Ordering, fmt::Debug, str::FromStr};
+
+const RECV_INDEX: ChildNumber = ChildNumber::Normal { index: 0 };
+const CHANGE_INDEX: ChildNumber = ChildNumber::Normal { index: 1 };
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -34,6 +37,7 @@ pub enum Error {
     Unexpected(&'static str),
     UserRefused,
     NetworkMismatch,
+    Bip86ChangeIndex,
 }
 
 impl std::fmt::Display for Error {
@@ -52,6 +56,9 @@ impl std::fmt::Display for Error {
             Error::Unexpected(e) => write!(f, "{}", e),
             Error::UserRefused => write!(f, "User refused operation"),
             Error::NetworkMismatch => write!(f, "Device network is different"),
+            Error::Bip86ChangeIndex => {
+                write!(f, "Ledger devices only accept 0 or 1 as`change` index value for BIP86 derivation path")
+            }
         }
     }
 }
