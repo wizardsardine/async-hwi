@@ -21,7 +21,7 @@ repository.workspace = true
 [features]
 default = ["ledger", "specter", "coldcard", "bitbox", "jade"]
 bitbox = ["tokio", "hidapi", "bitbox-api", "regex"]
-coldcard = ["dep:coldcard", "regex"]
+coldcard = ["dep:coldcard", "base64ct", "regex"]
 specter = ["tokio", "tokio-serial", "serialport"]
 jade = ["tokio", "tokio-serial", "serde", "serde_bytes", "serde_cbor", "serialport", "reqwest"]
 ledger = ["regex", "tokio", "ledger_bitcoin_client", "ledger-transport-hidapi", "ledger-apdu", "hidapi"]
@@ -47,6 +47,7 @@ bitbox-api = { version = "0.6.0", default-features = false, features = ["usb", "
 
 # coldcard
 coldcard = { version = "0.12.2", optional = true }
+base64ct = { version = "=1.7.3", optional = true }
 
 # ledger
 ledger_bitcoin_client = { version = "0.5.0", optional = true }
