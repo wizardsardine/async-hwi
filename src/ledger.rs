@@ -5,7 +5,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use async_trait::async_trait;
 use bitcoin::{
-    bip32::{ChildNumber, DerivationPath, Fingerprint, Xpub},
+    bip32::{DerivationPath, Fingerprint, Xpub},
     psbt::Psbt,
 };
 use ledger_bitcoin_client::psbt::PartialSignature;
