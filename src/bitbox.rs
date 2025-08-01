@@ -210,6 +210,28 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
         Ok(Xpub::from_str(&fg).map_err(|e| HWIError::Device(e.to_string()))?)
     }
 
+    async fn get_extended_pubkey_display(&self, path: &DerivationPath) -> Result<Xpub, HWIError> {
+        let fg = self
+            .client
+            .btc_xpub(
+                if self.network == bitcoin::Network::Bitcoin {
+                    pb::BtcCoin::Btc
+                } else {
+                    pb::BtcCoin::Tbtc
+                },
+                &Keypath::from(path),
+                if self.network == bitcoin::Network::Bitcoin {
+                    pb::btc_pub_request::XPubType::Xpub
+                } else {
+                    pb::btc_pub_request::XPubType::Tpub
+                },
+                true,
+            )
+            .await
+            .map_err(|e| HWIError::Device(e.to_string()))?;
+        Ok(Xpub::from_str(&fg).map_err(|e| HWIError::Device(e.to_string()))?)
+    }
+
     async fn display_address(&self, script: &AddressScript) -> Result<(), HWIError> {
         match script {
             AddressScript::P2TR(path) => {
