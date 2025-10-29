@@ -1,6 +1,6 @@
 # async-hwi
 
-Current **Minimum Supported Rust Version**: v1.81
+Current **Minimum Supported Rust Version**: v1.81 (1.85 if coldcard feature enabled)
 
 ```rust
 /// HWI is the common Hardware Wallet Interface.

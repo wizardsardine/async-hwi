@@ -8,6 +8,7 @@ use bitcoin::{
     bip32::{DerivationPath, Fingerprint, Xpub},
     psbt::Psbt,
 };
+use coldcard::protocol::DescriptorName;
 use hidapi::DeviceInfo;
 
 use crate::{parse_version, AddressScript, DeviceKind, Error as HWIError, Version, HWI};
@@ -121,7 +122,16 @@ impl HWI for Coldcard {
     async fn sign_tx(&self, psbt: &mut Psbt) -> Result<(), HWIError> {
         let mut cc = self.device()?;
 
-        let _ = cc.sign_psbt(&psbt.serialize(), api::SignMode::Signed)?;
+        let wallet_name = if let Some(name) = self.wallet_name.clone() {
+            Some(
+                DescriptorName::new(name)
+                    .map_err(|_| HWIError::Unexpected("Coldcard: Invalid wallet name"))?,
+            )
+        } else {
+            None
+        };
+
+        let _ = cc.sign_psbt_miniscript(&psbt.serialize(), api::SignMode::Signed, wallet_name)?;
 
         let tx = loop {
             if let Some(tx) = cc.get_signed_tx()? {
