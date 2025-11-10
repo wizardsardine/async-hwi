@@ -38,6 +38,7 @@ pub enum Error {
     UserRefused,
     NetworkMismatch,
     Bip86ChangeIndex,
+    Descriptor,
 }
 
 impl std::fmt::Display for Error {
@@ -59,6 +60,7 @@ impl std::fmt::Display for Error {
             Error::Bip86ChangeIndex => {
                 write!(f, "Ledger devices only accept 0 or 1 as`change` index value for BIP86 derivation path")
             }
+            Error::Descriptor => write!(f, "Missing or invalid descriptor"),
         }
     }
 }

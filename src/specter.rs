@@ -5,8 +5,10 @@ use std::sync::Arc;
 use bitcoin::{
     bip32::{DerivationPath, Fingerprint, Xpub},
     psbt::Psbt,
-    taproot,
+    taproot, Network,
 };
+
+use miniscript::{Descriptor, DescriptorPublicKey, ForEachKey};
 
 use serialport::{available_ports, SerialPort, SerialPortType};
 use tokio::{
@@ -24,6 +26,7 @@ use async_trait::async_trait;
 pub struct Specter<T> {
     transport: T,
     kind: DeviceKind,
+    pub descriptor: Option<Descriptor<DescriptorPublicKey>>,
 }
 
 impl<T: Transport> Specter<T> {
@@ -72,6 +75,17 @@ impl<T: Transport> Specter<T> {
             })
     }
 
+    pub async fn show_addr(&self, addr: bitcoin::Address, index: u32) -> Result<(), SpecterError> {
+        if let Some(descr) = &self.descriptor {
+            if descr.to_string().starts_with("wsh") {
+                let raw_req = format!("\r\n\r\nbitcoin:{}?index={}\r\n", addr, index);
+                println!("{raw_req}");
+                return self.transport.request(&raw_req).await.map(|_| ());
+            }
+        }
+        Err(SpecterError::Descriptor)
+    }
+
     pub async fn sign(&self, psbt: &Psbt) -> Result<Psbt, SpecterError> {
         self.transport
             .request(&format!("\r\n\r\nsign {}\r\n", psbt))
@@ -83,6 +97,13 @@ impl<T: Transport> Specter<T> {
                     Psbt::from_str(&resp).map_err(|e| SpecterError::Device(e.to_string()))
                 }
             })
+    }
+
+    pub fn set_descriptor(&mut self, descriptor: &str) -> Result<(), SpecterError> {
+        let descriptor = Descriptor::<DescriptorPublicKey>::from_str(descriptor)
+            .map_err(|_| SpecterError::Descriptor)?;
+        self.descriptor = Some(descriptor);
+        Ok(())
     }
 }
 
@@ -104,8 +125,43 @@ impl<T: Transport + Sync + Send> HWI for Specter<T> {
         Ok(self.get_extended_pubkey(path).await?)
     }
 
-    async fn display_address(&self, _script: &AddressScript) -> Result<(), HWIError> {
-        Err(HWIError::UnimplementedMethod)
+    async fn display_address(&self, script: &AddressScript) -> Result<(), HWIError> {
+        match script {
+            AddressScript::P2TR(_derivation_path) => Err(HWIError::UnimplementedMethod),
+            AddressScript::Miniscript { index, change } => {
+                if let Some(descr) = &self.descriptor {
+                    let is_mainnet = descr.for_each_key(|k| {
+                        if let DescriptorPublicKey::MultiXPub(xpub) = k {
+                            xpub.xkey.network == Network::Bitcoin.into()
+                        } else {
+                            false
+                        }
+                    });
+                    let network = match is_mainnet {
+                        true => Network::Bitcoin,
+                        false => Network::Signet,
+                    };
+                    let key_chain = match change {
+                        true => 1,
+                        false => 0,
+                    };
+                    let addr = descr
+                        .clone()
+                        .into_single_descriptors()
+                        .map_err(|_| HWIError::Descriptor)?
+                        .get(key_chain)
+                        .ok_or(HWIError::Descriptor)?
+                        .at_derivation_index(*index)
+                        .map_err(|_| HWIError::Descriptor)?
+                        .address(network)
+                        .map_err(|_| HWIError::Descriptor)?;
+                    self.show_addr(addr, *index).await?;
+                    Ok(())
+                } else {
+                    Err(HWIError::Descriptor)
+                }
+            }
+        }
     }
 
     async fn register_wallet(
@@ -235,6 +291,7 @@ impl SpecterSimulator {
         let s = SpecterSimulator {
             transport: TcpTransport {},
             kind: DeviceKind::SpecterSimulator,
+            descriptor: None,
         };
         let _ = s.get_master_fingerprint().await?;
         Ok(s)
@@ -247,8 +304,19 @@ impl Specter<SerialTransport> {
         Ok(Self {
             transport,
             kind: DeviceKind::Specter,
+            descriptor: None,
         })
     }
+
+    pub fn new_with_descriptor(
+        port_name: String,
+        descriptor: String,
+    ) -> Result<Self, SpecterError> {
+        let mut specter = Self::new(port_name)?;
+        specter.set_descriptor(&descriptor)?;
+        Ok(specter)
+    }
+
     pub async fn enumerate() -> Result<Vec<Self>, SpecterError> {
         let mut res = Vec::new();
         for port_name in SerialTransport::enumerate_potential_ports()? {
@@ -325,6 +393,7 @@ pub enum SpecterError {
     DeviceDidNotSign,
     Device(String),
     UserCancelled,
+    Descriptor,
 }
 
 impl std::fmt::Display for SpecterError {
@@ -334,6 +403,7 @@ impl std::fmt::Display for SpecterError {
             Self::DeviceDidNotSign => write!(f, "Specter did not sign the psbt"),
             Self::Device(e) => write!(f, "Specter error: {}", e),
             Self::UserCancelled => write!(f, "User cancelled operation"),
+            Self::Descriptor => write!(f, "Invalid descriptor"),
         }
     }
 }
@@ -345,6 +415,7 @@ impl From<SpecterError> for HWIError {
             SpecterError::DeviceDidNotSign => HWIError::DeviceDidNotSign,
             SpecterError::Device(e) => HWIError::Device(e),
             SpecterError::UserCancelled => HWIError::UserRefused,
+            SpecterError::Descriptor => HWIError::Descriptor,
         }
     }
 }
