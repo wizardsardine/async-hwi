@@ -46,7 +46,8 @@ reqwest = { version = "0.11", default-features = false, features = ["json", "rus
 bitbox-api = { version = "0.9.0", default-features = false, features = ["usb", "tokio", "multithreaded", "simulator"], optional = true }
 
 # coldcard
-coldcard = { version = "0.12.2", optional = true }
+# coldcard = { version = "0.12.2", optional = true }
+coldcard = { git = "https://github.com/pythcoiner/rust-coldcard.git", branch = "cc_6.4.0", optional = true }
 
 # ledger
 ledger_bitcoin_client = { version = "0.5.0", optional = true }

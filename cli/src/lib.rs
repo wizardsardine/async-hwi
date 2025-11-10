@@ -27,7 +27,10 @@ pub mod command {
         }
 
         if let Ok(devices) = Specter::enumerate().await {
-            for device in devices {
+            for mut device in devices {
+                if let Some(Some(policy)) = wallet.as_ref().map(|w| w.policy) {
+                    let _ = device.set_descriptor(policy);
+                }
                 hws.push(device.into());
             }
         }
