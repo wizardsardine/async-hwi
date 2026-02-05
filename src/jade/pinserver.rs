@@ -21,17 +21,49 @@ impl PinServerClient {
     where
         D: serde::de::DeserializeOwned,
     {
-        let url = match &req.urls {
-            api::PinServerUrls::Array(urls) => urls.first().ok_or(Error::NoUrlProvided)?,
-            api::PinServerUrls::Object { url, .. } => url,
+        // Match Python behavior: use first non-onion URL
+        let urls = match &req.urls {
+            api::PinServerUrls::Array(urls) => {
+                if urls.is_empty() {
+                    return Err(Error::NoUrlProvided);
+                }
+                urls.clone()
+            }
+            api::PinServerUrls::Object { url, .. } => vec![url.clone()],
         };
 
-        let res = self.client.post(url).json(&req.data).send().await?;
+        // Filter out .onion URLs and use the first one, matching Python behavior
+        let url = urls
+            .iter()
+            .find(|url| !url.ends_with(".onion"))
+            .ok_or(Error::NoUrlProvided)?;
 
-        if res.status().is_success() {
-            res.json().await.map_err(Error::from)
+        // Match Python: use_json = params.get('accept') in ['json', 'application/json']
+        let use_json = req.accept == "json" || req.accept == "application/json";
+
+        let res = if req.method == "POST" {
+            if use_json {
+                // Send as JSON like Python: json.dumps(params['data'])
+                self.client.post(url).json(&req.data).send().await
+            } else {
+                // Send as form data like Python: requests.post(url, data)
+                self.client.post(url).form(&req.data).send().await
+            }
         } else {
-            Err(Error::Server(format!("{:?}", res)))
+            return Err(Error::UnsupportedMethod(req.method.clone()));
+        };
+
+        match res {
+            Ok(response) if response.status().is_success() => {
+                response.json().await.map_err(Error::from)
+            }
+            Ok(response) => Err(Error::Server(format!(
+                "HTTP {} from {}: {:?}",
+                response.status(),
+                url,
+                response
+            ))),
+            Err(e) => Err(Error::Client(e)),
         }
     }
 }
@@ -39,6 +71,7 @@ impl PinServerClient {
 #[derive(Debug)]
 pub enum Error {
     NoUrlProvided,
+    UnsupportedMethod(String),
     Client(reqwest::Error),
     Server(String),
 }
