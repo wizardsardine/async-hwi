@@ -1442,7 +1442,7 @@ fn handle_bitbox02<Message, Id>(
     /// Prefer serial number for stable ID across USB ports; fall back to path.
     fn bitbox_id(device_info: &ledger::DeviceInfo) -> String {
         let id = if let Some(sn) = device_info.serial_number() {
-            format!("bitbox-{}", sn)
+            format!("bitbox-{sn}")
         } else {
             format!(
                 "bitbox-{:?}-{}-{}",

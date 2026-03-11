@@ -407,7 +407,7 @@ pub fn extract_script_config_policy(policy: &str) -> Result<Policy, HWIError> {
 
     let mut pubkeys: Vec<KeyInfo> = Vec::new();
     for (i, key_str) in pubkeys_str.iter().enumerate() {
-        descriptor_template = descriptor_template.replace(key_str, &format!("@{}", i));
+        descriptor_template = descriptor_template.replace(key_str, &format!("@{i}"));
         let pubkey = if let Ok(key) = Xpub::from_str(key_str) {
             KeyInfo {
                 path: None,
@@ -428,7 +428,7 @@ pub fn extract_script_config_policy(policy: &str) -> Result<Policy, HWIError> {
             let derivation_path = if path_str.is_empty() {
                 DerivationPath::master()
             } else {
-                DerivationPath::from_str(&format!("m/{}", path_str))
+                DerivationPath::from_str(&format!("m/{path_str}"))
                     .map_err(|e| HWIError::InvalidParameter("policy", e.to_string()))?
             };
 
@@ -462,7 +462,7 @@ pub fn extract_first_appended_derivation_with_some_wildcard(
 ) -> Result<(Vec<DerivationPath>, bip389::Wildcard), HWIError> {
     let re = Regex::new(r"@\d+/[^,)]+").unwrap();
     for capture in re.find_iter(template) {
-        if capture.as_str().contains(&format!("@{}", key_index)) {
+        if capture.as_str().contains(&format!("@{key_index}")) {
             if let Some((_, appended)) = capture.as_str().split_once('/') {
                 let (derivations, wildcard) = bip389::parse_xkey_deriv(appended)?;
                 if wildcard != bip389::Wildcard::None {

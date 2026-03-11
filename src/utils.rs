@@ -143,7 +143,7 @@ pub fn extract_keys_and_template<T: FromStr>(policy: &str) -> Result<(String, Ve
 
     let mut pubkeys: Vec<T> = Vec::new();
     for (i, key_str) in pubkeys_str.iter().enumerate() {
-        descriptor_template = descriptor_template.replace(key_str, &format!("@{}", i));
+        descriptor_template = descriptor_template.replace(key_str, &format!("@{i}"));
         let pubkey = T::from_str(key_str).map_err(|_| Error::UnsupportedInput)?;
         pubkeys.push(pubkey);
     }

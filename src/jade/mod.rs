@@ -219,7 +219,7 @@ impl<T: Transport + Sync + Send> HWI for Jade<T> {
                     datavalues: keys
                         .into_iter()
                         .enumerate()
-                        .map(|(i, key)| (format!("@{}", i), key))
+                        .map(|(i, key)| (format!("@{i}"), key))
                         .collect(),
                 }),
             )
@@ -244,7 +244,7 @@ impl<T: Transport + Sync + Send> HWI for Jade<T> {
         let datavalues: BTreeMap<String, String> = keys
             .into_iter()
             .enumerate()
-            .map(|(i, key)| (format!("@{}", i), key))
+            .map(|(i, key)| (format!("@{i}"), key))
             .collect();
 
         Ok(registered.descriptor_name == name
@@ -501,11 +501,11 @@ impl From<serialport::Error> for TransportError {
 impl std::fmt::Display for TransportError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::Serialize(e) => write!(f, "{}", e),
+            Self::Serialize(e) => write!(f, "{e}"),
             Self::NoErrorOrResult => write!(f, "No Error or Result"),
             Self::NonceMismatch => write!(f, "Nonce mismatched"),
-            Self::Io(e) => write!(f, "{}", e),
-            Self::Serial(e) => write!(f, "{}", e),
+            Self::Io(e) => write!(f, "{e}"),
+            Self::Serial(e) => write!(f, "{e}"),
         }
     }
 }
@@ -533,9 +533,9 @@ impl From<pinserver::Error> for JadeError {
 impl std::fmt::Display for JadeError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::Transport(e) => write!(f, "{}", e),
-            Self::Rpc(e) => write!(f, "{:?}", e),
-            Self::PinServer(e) => write!(f, "{:?}", e),
+            Self::Transport(e) => write!(f, "{e}"),
+            Self::Rpc(e) => write!(f, "{e:?}"),
+            Self::PinServer(e) => write!(f, "{e:?}"),
             Self::HandShakeRefused => write!(f, "Handshake with pinserver refused"),
         }
     }
@@ -551,10 +551,10 @@ impl From<JadeError> for HWIError {
                 } else if e.code == api::ErrorCode::NetworkMismatch as i32 {
                     HWIError::NetworkMismatch
                 } else {
-                    HWIError::Device(format!("{:?}", e))
+                    HWIError::Device(format!("{e:?}"))
                 }
             }
-            JadeError::PinServer(e) => HWIError::Device(format!("{:?}", e)),
+            JadeError::PinServer(e) => HWIError::Device(format!("{e:?}")),
             JadeError::HandShakeRefused => {
                 HWIError::Device("Handshake with pinserver refused".to_string())
             }
