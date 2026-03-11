@@ -31,7 +31,7 @@ impl PinServerClient {
         if res.status().is_success() {
             res.json().await.map_err(Error::from)
         } else {
-            Err(Error::Server(format!("{:?}", res)))
+            Err(Error::Server(format!("{res:?}")))
         }
     }
 }

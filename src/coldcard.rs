@@ -69,10 +69,10 @@ impl HWI for Coldcard {
         let path = if path.starts_with("m/") {
             path
         } else {
-            format!("m/{}", path)
+            format!("m/{path}")
         };
         let path = coldcard::protocol::DerivationPath::new(&path)
-            .map_err(|e| HWIError::InvalidParameter("path", format!("{:?}", e)))?;
+            .map_err(|e| HWIError::InvalidParameter("path", format!("{e:?}")))?;
         let s = self.device()?.xpub(Some(path))?;
         Xpub::from_str(&s).map_err(|e| HWIError::Device(e.to_string()))
     }
@@ -98,7 +98,7 @@ impl HWI for Coldcard {
         name: &str,
         policy: &str,
     ) -> Result<Option<[u8; 32]>, HWIError> {
-        let payload = format!("{{\"name\":\"{}\",\"desc\":\"{}\"}}", name, policy);
+        let payload = format!("{{\"name\":\"{name}\",\"desc\":\"{policy}\"}}");
         let _ = self.device()?.miniscript_enroll(payload.as_bytes())?;
         Ok(None)
     }
