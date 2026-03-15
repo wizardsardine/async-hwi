@@ -134,7 +134,7 @@ impl<T: Transport + Sync + Send> Jade<T> {
 
         if let api::AuthUserResponse::PinServerRequired { http_request } = res {
             let client = pinserver::PinServerClient::new();
-            let pin_params: api::PinParams = client.request(http_request.params).await?;
+            let pin_params: api::PinParams = client.request(http_request.params)?;
             let handshake_completed: bool = self
                 .transport
                 .request("pin", Some(pin_params))

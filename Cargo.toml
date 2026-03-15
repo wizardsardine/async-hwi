@@ -23,7 +23,7 @@ default = ["ledger", "specter", "coldcard", "bitbox", "jade", "service"]
 bitbox = ["tokio", "hidapi", "bitbox-api", "regex"]
 coldcard = ["dep:coldcard", "regex"]
 specter = ["tokio", "tokio-serial", "serialport"]
-jade = ["tokio", "tokio-serial", "serde", "serde_bytes", "serde_cbor", "serialport", "reqwest"]
+jade = ["tokio", "tokio-serial", "serde", "serde_bytes", "serde_cbor", "serialport", "ureq"]
 ledger = ["regex", "tokio", "ledger_bitcoin_client", "ledger-transport-hidapi", "ledger-apdu", "hidapi"]
 regex = ["dep:regex"]
 service = ["bitbox", "coldcard", "jade", "ledger", "specter", "tracing", "hex", "crossbeam"]
@@ -41,7 +41,7 @@ serialport = { version = "4.3", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 serde_bytes = { version = "0.11.14", optional = true }
 serde_cbor = { version = "0.11", optional = true }
-reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] , optional = true}
+ureq = { version = "3", features = ["json"], optional = true }
 
 # bitbox
 bitbox-api = { version = "0.9.0", default-features = false, features = ["usb", "tokio", "multithreaded", "simulator"], optional = true }

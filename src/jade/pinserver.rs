@@ -1,7 +1,7 @@
 use super::api;
 
 pub struct PinServerClient {
-    pub client: reqwest::Client,
+    pub client: ureq::Agent,
 }
 
 impl Default for PinServerClient {
@@ -13,11 +13,11 @@ impl Default for PinServerClient {
 impl PinServerClient {
     pub fn new() -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: ureq::Agent::new_with_defaults(),
         }
     }
 
-    pub async fn request<D>(&self, req: api::PinServerRequestParams) -> Result<D, Error>
+    pub fn request<D>(&self, req: api::PinServerRequestParams) -> Result<D, Error>
     where
         D: serde::de::DeserializeOwned,
     {
@@ -26,25 +26,20 @@ impl PinServerClient {
             api::PinServerUrls::Object { url, .. } => url,
         };
 
-        let res = self.client.post(url).json(&req.data).send().await?;
-
-        if res.status().is_success() {
-            res.json().await.map_err(Error::from)
-        } else {
-            Err(Error::Server(format!("{res:?}")))
-        }
+        let mut res = self.client.post(url).send_json(&req.data)?;
+        res.body_mut().read_json().map_err(Error::from)
     }
 }
 
 #[derive(Debug)]
 pub enum Error {
     NoUrlProvided,
-    Client(reqwest::Error),
+    Client(ureq::Error),
     Server(String),
 }
 
-impl From<reqwest::Error> for Error {
-    fn from(e: reqwest::Error) -> Self {
+impl From<ureq::Error> for Error {
+    fn from(e: ureq::Error) -> Self {
         Self::Client(e)
     }
 }
