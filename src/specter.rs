@@ -38,7 +38,7 @@ impl<T: Transport> Specter<T> {
 
     pub async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, SpecterError> {
         self.transport
-            .request(&format!("\r\n\r\nxpub {}\r\n", path))
+            .request(&format!("\r\n\r\nxpub {path}\r\n"))
             .await
             .and_then(|resp| Xpub::from_str(&resp).map_err(|e| SpecterError::Device(e.to_string())))
     }
@@ -74,7 +74,7 @@ impl<T: Transport> Specter<T> {
 
     pub async fn sign(&self, psbt: &Psbt) -> Result<Psbt, SpecterError> {
         self.transport
-            .request(&format!("\r\n\r\nsign {}\r\n", psbt))
+            .request(&format!("\r\n\r\nsign {psbt}\r\n"))
             .await
             .and_then(|resp| {
                 if resp == "error: User cancelled" {
@@ -300,8 +300,7 @@ impl SerialTransport {
                 })
                 .collect()),
             Err(e) => Err(SpecterError::Device(format!(
-                "Error listing serial ports: {}",
-                e
+                "Error listing serial ports: {e}"
             ))),
         }
     }
@@ -332,7 +331,7 @@ impl std::fmt::Display for SpecterError {
         match self {
             Self::DeviceNotFound => write!(f, "Specter not found"),
             Self::DeviceDidNotSign => write!(f, "Specter did not sign the psbt"),
-            Self::Device(e) => write!(f, "Specter error: {}", e),
+            Self::Device(e) => write!(f, "Specter error: {e}"),
             Self::UserCancelled => write!(f, "User cancelled operation"),
         }
     }

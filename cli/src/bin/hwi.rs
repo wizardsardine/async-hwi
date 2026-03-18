@@ -151,7 +151,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 eprint!("{}", device.get_master_fingerprint().await?);
                 eprint!(" {}", device.device_kind());
                 if let Ok(version) = device.get_version().await.map(|v| v.to_string()) {
-                    eprint!(" {}", version);
+                    eprint!(" {version}");
                 }
                 eprintln!();
             }
@@ -194,7 +194,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     _ => ("".into(), policy.clone()),
                 };
                 let res = device.is_wallet_registered(&name, &policy).await?;
-                eprintln!("{}", res);
+                eprintln!("{res}");
             }
         }
         Commands::Psbt(PsbtCommands::Sign {
@@ -219,7 +219,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
                 device.sign_tx(&mut psbt).await?;
-                eprintln!("{}", psbt);
+                eprintln!("{psbt}");
             }
         }
     }

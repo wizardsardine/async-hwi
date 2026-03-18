@@ -320,7 +320,7 @@ impl<T: core::fmt::Debug> From<BitcoinClientError<T>> for HWIError {
                 return HWIError::UserRefused;
             }
         };
-        HWIError::Device(format!("{:#?}", e))
+        HWIError::Device(format!("{e:#?}"))
     }
 }
 

@@ -45,7 +45,7 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Error::ParsingPolicy(e) => write!(f, "{}", e),
+            Error::ParsingPolicy(e) => write!(f, "{e}"),
             Error::MissingPolicy => write!(f, "Missing policy"),
             Error::UnsupportedVersion => write!(f, "Unsupported version"),
             Error::UnsupportedInput => write!(f, "Unsupported input"),
@@ -53,9 +53,9 @@ impl std::fmt::Display for Error {
             Error::DeviceDisconnected => write!(f, "Device disconnected"),
             Error::DeviceNotFound => write!(f, "Device not found"),
             Error::DeviceDidNotSign => write!(f, "Device did not sign"),
-            Error::Device(e) => write!(f, "{}", e),
-            Error::InvalidParameter(param, e) => write!(f, "Invalid parameter {}: {}", param, e),
-            Error::Unexpected(e) => write!(f, "{}", e),
+            Error::Device(e) => write!(f, "{e}"),
+            Error::InvalidParameter(param, e) => write!(f, "Invalid parameter {param}: {e}"),
+            Error::Unexpected(e) => write!(f, "{e}"),
             Error::UserRefused => write!(f, "User refused operation"),
             Error::NetworkMismatch => write!(f, "Device network is different"),
             Error::Bip86ChangeIndex => {
