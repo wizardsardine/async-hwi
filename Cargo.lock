@@ -130,7 +130,7 @@ checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
 name = "async-hwi"
-version = "0.0.30"
+version = "0.0.31"
 dependencies = [
  "async-trait",
  "bitbox-api",
@@ -156,7 +156,7 @@ dependencies = [
 
 [[package]]
 name = "async-hwi-cli"
-version = "0.0.23"
+version = "0.0.24"
 dependencies = [
  "async-hwi",
  "bitcoin",
