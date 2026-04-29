@@ -6,10 +6,10 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use async_trait::async_trait;
 use bitcoin::{
     bip32::{DerivationPath, Fingerprint, Xpub},
-    psbt::Psbt,
+    psbt::{raw, Psbt},
 };
 use ledger_bitcoin_client::psbt::PartialSignature;
-use ledger_bitcoin_client::SignPsbtYieldedObject;
+use ledger_bitcoin_client::{MusigPartialSignature, MusigPubNonce, SignPsbtYieldedObject};
 
 use ledger_apdu::APDUAnswer;
 use ledger_transport_hidapi::TransportNativeHID;
@@ -188,7 +188,17 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
                             input.tap_key_sig = Some(sig);
                         }
                     },
-                    _ => {} // Ignore MuSig2 and unknown payloads
+                    SignPsbtYieldedObject::MusigPubNonce(nonce) => {
+                        let key = musig2_pub_nonce_key(&nonce);
+                        input.unknown.insert(key, nonce.pubnonce.to_vec());
+                    }
+                    SignPsbtYieldedObject::MusigPartialSignature(partial) => {
+                        let key = musig2_partial_sig_key(&partial);
+                        input
+                            .unknown
+                            .insert(key, partial.partial_signature.to_vec());
+                    }
+                    _ => {} // Ignore unknown payloads
                 }
             }
             Ok(())
@@ -196,6 +206,38 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
             // Ledger cannot sign without policy.
             Err(HWIError::UnimplementedMethod)
         }
+    }
+}
+
+/// rust-bitcoin's PSBT implementation does not support musig2 fields,
+/// so we encode them as unknown fields, until support is added.
+/// BIP-373: PSBT_IN_MUSIG2_PUB_NONCE = 0x1b
+/// Key: {0x1b}|{33-byte participant_pubkey}|{33-byte aggregate_pubkey}[|{32-byte tapleaf_hash}]
+fn musig2_pub_nonce_key(nonce: &MusigPubNonce) -> raw::Key {
+    let mut key_data = Vec::with_capacity(66 + 32);
+    key_data.extend_from_slice(&nonce.participant_pubkey.to_bytes());
+    key_data.extend_from_slice(&nonce.aggregate_pubkey.to_bytes());
+    if let Some(tapleaf_hash) = nonce.tapleaf_hash {
+        key_data.extend_from_slice(tapleaf_hash.as_ref());
+    }
+    raw::Key {
+        type_value: 0x1b,
+        key: key_data,
+    }
+}
+
+/// BIP-373: PSBT_IN_MUSIG2_PARTIAL_SIG = 0x1c
+/// Key: {0x1c}|{33-byte participant_pubkey}|{33-byte aggregate_pubkey}[|{32-byte tapleaf_hash}]
+fn musig2_partial_sig_key(sig: &MusigPartialSignature) -> raw::Key {
+    let mut key_data = Vec::with_capacity(66 + 32);
+    key_data.extend_from_slice(&sig.participant_pubkey.to_bytes());
+    key_data.extend_from_slice(&sig.aggregate_pubkey.to_bytes());
+    if let Some(tapleaf_hash) = sig.tapleaf_hash {
+        key_data.extend_from_slice(tapleaf_hash.as_ref());
+    }
+    raw::Key {
+        type_value: 0x1c,
+        key: key_data,
     }
 }
 
