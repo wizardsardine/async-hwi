@@ -68,3 +68,6 @@ crossbeam = { version = "0.8.4", features = ["crossbeam-channel"], optional = tr
 
 [dev-dependencies]
 tokio = { version = "1.21", features = ["macros", "net", "rt", "rt-multi-thread", "io-util", "sync"] }
+speculos = "0.1"
+regex = "1"
+miniscript = "12"
