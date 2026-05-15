@@ -197,6 +197,13 @@ pub enum DeviceKind {
     Jade,
 }
 
+impl DeviceKind {
+    /// See https://github.com/wizardsardine/liana/pull/750 for more details.
+    pub fn requires_psbt_pruning(&self) -> bool {
+        matches!(self, Self::BitBox02 | Self::Trezor | Self::TrezorSimulator)
+    }
+}
+
 impl std::fmt::Display for DeviceKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
