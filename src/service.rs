@@ -856,13 +856,23 @@ where
     Message: From<SigningDeviceMsg<Id>> + Send + Clone + 'static,
     Id: Send + Clone + 'static,
 {
-    // If device is already in the map, don't poll it again
-    if devices.lock().expect("poisoned").contains_key(id) {
-        tracing::trace!(
-            "should_poll({}): device already in map, returning false",
-            id
-        );
-        return false;
+    // If device is already in the map and supported, don't poll it again
+    match devices.lock().expect("poisoned").get(id) {
+        Some(SigningDevice::Supported(_)) => {
+            tracing::trace!(
+                "should_poll({}): supported device already in map, returning false",
+                id
+            );
+            return false;
+        }
+        Some(SigningDevice::Locked { .. }) => {
+            tracing::trace!(
+                "should_poll({}): locked device already in map, returning false",
+                id
+            );
+            return false;
+        }
+        _ => {}
     }
 
     let result = match handles.get(id) {
