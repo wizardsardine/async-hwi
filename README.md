@@ -44,12 +44,14 @@ A Empty case means the method is unimplemented on the client or device side.
 | Jade[^3]             | >= v1.0.30 | >= v1.0.30 | >= v1.0.30 | >= v1.0.30 | >= v1.0.30           | >= v1.0.30 | >= v1.0.30 |
 | Ledger Nano S/S+[^4] | >= v2.1.2  | >= v2.1.2  | >= v2.1.2  | >= v2.1.2  | *check hmac presence | >= v2.1.2  | >= v2.1.2  |
 | Specter[^5]          |            | >= v1.8.0  | >= v1.8.0  | >= v1.8.0  |                      |            | >= v1.8.0  |
+| Trezor[^6]           |            | >= v1.8.0  | >= v1.8.0  | >= v1.8.0  |                      |            | >= v1.8.0  |
 
 [^1]: https://github.com/digitalbitbox/bitbox02-firmware
 [^2]: https://github.com/alfred-hodler/rust-coldcard
 [^3]: https://github.com/Blockstream/Jade
 [^4]: https://github.com/LedgerHQ/app-bitcoin-new
 [^5]: https://github.com/cryptoadvance/specter-diy
+[^6]: (https://github.com/trezor/trezor-firmware
 
 ## Service Module
 

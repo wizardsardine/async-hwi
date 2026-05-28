@@ -11,6 +11,8 @@ pub mod ledger;
 pub mod service;
 #[cfg(feature = "specter")]
 pub mod specter;
+#[cfg(feature = "trezor")]
+pub mod trezor;
 pub mod utils;
 
 use async_trait::async_trait;
@@ -195,6 +197,15 @@ pub enum DeviceKind {
     Ledger,
     LedgerSimulator,
     Jade,
+    Trezor,
+    TrezorSimulator,
+}
+
+impl DeviceKind {
+    /// See https://github.com/wizardsardine/liana/pull/750 for more details.
+    pub fn requires_psbt_pruning(&self) -> bool {
+        matches!(self, Self::BitBox02 | Self::Trezor | Self::TrezorSimulator)
+    }
 }
 
 impl std::fmt::Display for DeviceKind {
@@ -207,6 +218,8 @@ impl std::fmt::Display for DeviceKind {
             DeviceKind::Ledger => write!(f, "ledger"),
             DeviceKind::LedgerSimulator => write!(f, "ledger-simulator"),
             DeviceKind::Jade => write!(f, "jade"),
+            DeviceKind::Trezor => write!(f, "trezor"),
+            DeviceKind::TrezorSimulator => write!(f, "trezor-simulator"),
         }
     }
 }
@@ -222,6 +235,8 @@ impl std::str::FromStr for DeviceKind {
             "ledger" => Ok(DeviceKind::Ledger),
             "ledger-simulator" => Ok(DeviceKind::LedgerSimulator),
             "jade" => Ok(DeviceKind::Jade),
+            "trezor" => Ok(DeviceKind::Trezor),
+            "trezor-simulator" => Ok(DeviceKind::TrezorSimulator),
             _ => Err(()),
         }
     }
