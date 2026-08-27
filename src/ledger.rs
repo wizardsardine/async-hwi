@@ -262,8 +262,18 @@ impl Transport for TransportHID {
 pub type LedgerSimulator = Ledger<TransportTcp>;
 
 impl LedgerSimulator {
+    /// Connect to a Speculos simulator on the default address (`127.0.0.1:9999`).
     pub async fn try_connect() -> Result<Self, HWIError> {
-        let transport = TransportTcp::new()
+        Self::try_connect_on(SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            9999,
+        ))
+        .await
+    }
+
+    /// Connect to a Speculos simulator at `addr`.
+    pub async fn try_connect_on(addr: SocketAddr) -> Result<Self, HWIError> {
+        let transport = TransportTcp::new_on(addr)
             .await
             .map_err(|_| HWIError::DeviceNotFound)?;
         Ok(Ledger {
@@ -280,8 +290,17 @@ pub struct TransportTcp {
 }
 
 impl TransportTcp {
+    /// Connect to Speculos on the default address (`127.0.0.1:9999`).
     pub async fn new() -> Result<Self, Box<dyn Error>> {
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 9999);
+        Self::new_on(SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            9999,
+        ))
+        .await
+    }
+
+    /// Connect to Speculos at the given address.
+    pub async fn new_on(addr: SocketAddr) -> Result<Self, Box<dyn Error>> {
         let stream = TcpStream::connect(addr).await?;
         Ok(Self {
             connection: Mutex::new(stream),
