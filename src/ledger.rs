@@ -38,7 +38,7 @@ pub use ledger_bitcoin_client::async_client::Transport;
 #[derive(Default)]
 struct CommandOptions {
     wallet: Option<(WalletPolicy, Option<[u8; 32]>)>,
-    display_xpub: bool,
+    display_xpub: std::sync::Mutex<bool>,
 }
 
 pub struct Ledger<T: Transport> {
@@ -48,8 +48,8 @@ pub struct Ledger<T: Transport> {
 }
 
 impl<T: Transport> Ledger<T> {
-    pub fn display_xpub(mut self, display: bool) -> Result<Self, HWIError> {
-        self.options.display_xpub = display;
+    pub fn display_xpub(self, display: bool) -> Result<Self, HWIError> {
+        *self.options.display_xpub.lock().expect("poisoned") = display;
         Ok(self)
     }
 
@@ -95,10 +95,12 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
     }
 
     async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, HWIError> {
-        Ok(self
-            .client
-            .get_extended_pubkey(path, self.options.display_xpub)
-            .await?)
+        let display = *self.options.display_xpub.lock().expect("poisoned");
+        Ok(self.client.get_extended_pubkey(path, display).await?)
+    }
+
+    fn display(&self, display: bool) {
+        *self.options.display_xpub.lock().expect("poisoned") = display;
     }
 
     async fn display_address(&self, script: &AddressScript) -> Result<(), HWIError> {

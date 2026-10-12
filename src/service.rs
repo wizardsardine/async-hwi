@@ -117,7 +117,7 @@ where
         &self.kind
     }
 
-    pub fn get_extended_pubkey(&self, id: Id, path: &DerivationPath) {
+    pub fn get_extended_pubkey(&self, id: Id, path: &DerivationPath, display: bool) {
         let path = path.clone();
         let sender = self.sender.clone();
         let fg = self.fingerprint;
@@ -128,6 +128,7 @@ where
             path
         );
         self.rt.spawn(async move {
+            device.display(display);
             match (*device).get_extended_pubkey(&path).await {
                 Ok(xpub) => {
                     tracing::debug!(
@@ -1704,7 +1705,7 @@ fn handle_coldcard<Message, Id>(
                                         "handle_coldcard[{}]: version supported, creating Supported device",
                                         id_clone
                                     );
-                                    SigningDevice::Supported (SupportedDevice{
+                                    SigningDevice::Supported(SupportedDevice {
                                         id: id_clone.clone(),
                                         device,
                                         kind: DeviceKind::Coldcard,

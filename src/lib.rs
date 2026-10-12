@@ -84,6 +84,8 @@ pub trait HWI: Debug {
     async fn get_master_fingerprint(&self) -> Result<Fingerprint, Error>;
     /// Get the xpub with the given derivation path.
     async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, Error>;
+    /// Display xpubs on the device screen when the device supports it.
+    fn display(&self, _display: bool) {}
     /// Register a new wallet policy.
     async fn register_wallet(&self, name: &str, policy: &str) -> Result<Option<[u8; 32]>, Error>;
     /// Returns true if the wallet is registered on the device.

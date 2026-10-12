@@ -118,7 +118,7 @@ impl<T: Runtime> PairingBitbox02<T> {
 
 pub struct BitBox02<T: Runtime> {
     pub network: bitcoin::Network,
-    pub display_xpub: bool,
+    pub display_xpub: Mutex<bool>,
     pub client: PairedBitBox<T>,
     pub policy: Option<Policy>,
 }
@@ -132,7 +132,7 @@ impl<T: Runtime> std::fmt::Debug for BitBox02<T> {
 impl<T: Runtime> BitBox02<T> {
     pub fn from(paired_bitbox: PairedBitBox<T>) -> Self {
         BitBox02 {
-            display_xpub: false,
+            display_xpub: Mutex::new(false),
             network: bitcoin::Network::Bitcoin,
             client: paired_bitbox,
             policy: None,
@@ -144,8 +144,8 @@ impl<T: Runtime> BitBox02<T> {
         self
     }
 
-    pub fn display_xpub(mut self, value: bool) -> Self {
-        self.display_xpub = value;
+    pub fn display_xpub(self, value: bool) -> Self {
+        *self.display_xpub.lock().expect("poisoned") = value;
         self
     }
 
@@ -189,6 +189,7 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
     }
 
     async fn get_extended_pubkey(&self, path: &DerivationPath) -> Result<Xpub, HWIError> {
+        let display = *self.display_xpub.lock().expect("poisoned");
         let fg = self
             .client
             .btc_xpub(
@@ -203,11 +204,15 @@ impl<T: Runtime + Sync + Send> HWI for BitBox02<T> {
                 } else {
                     pb::btc_pub_request::XPubType::Tpub
                 },
-                self.display_xpub,
+                display,
             )
             .await
             .map_err(|e| HWIError::Device(e.to_string()))?;
         Ok(Xpub::from_str(&fg).map_err(|e| HWIError::Device(e.to_string()))?)
+    }
+
+    fn display(&self, display: bool) {
+        *self.display_xpub.lock().expect("poisoned") = display;
     }
 
     async fn display_address(&self, script: &AddressScript) -> Result<(), HWIError> {
