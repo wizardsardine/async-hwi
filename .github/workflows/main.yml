@@ -19,6 +19,8 @@ jobs:
           sudo apt-get update &&
           sudo apt-get install libudev-dev pkg-config &&
           cargo clippy --all-features --all-targets -- -D warnings
+      - name: CLI README
+        run: cli/update-readme.sh --check
 
   unit_tests:
     needs: linter

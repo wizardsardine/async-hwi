@@ -28,8 +28,8 @@ use ledger_bitcoin_client::{
 };
 
 use crate::{
-    parse_version, utils, AddressScript, DeviceKind, Error as HWIError, CHANGE_INDEX, HWI,
-    RECV_INDEX,
+    parse_version, utils, xpub_with_origin, AddressScript, DeviceKind, Error as HWIError,
+    CHANGE_INDEX, HWI, RECV_INDEX,
 };
 
 pub use hidapi::{DeviceInfo, HidApi};
@@ -111,7 +111,7 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
                 let path = DerivationPath::from(hardened_children);
                 let fg = self.get_master_fingerprint().await?;
                 let xpub = self.get_extended_pubkey(&path).await?;
-                let policy = format!("tr({}/**)", key_string_from_parts(fg, path, xpub));
+                let policy = format!("tr({}/**)", xpub_with_origin(fg, &path, xpub));
                 let (descriptor_template, keys) =
                     utils::extract_keys_and_template::<WalletPubKey>(&policy)?;
                 let wallet =
@@ -199,15 +199,6 @@ impl<T: Transport + Sync + Send> HWI for Ledger<T> {
             Err(HWIError::UnimplementedMethod)
         }
     }
-}
-
-fn key_string_from_parts(fg: Fingerprint, path: DerivationPath, xpub: Xpub) -> String {
-    format!(
-        "[{}/{}]{}",
-        fg,
-        path.to_string().trim_start_matches("m/"),
-        xpub
-    )
 }
 
 impl Ledger<TransportHID> {
@@ -338,10 +329,10 @@ mod tests {
 
     // This is a foolproof test in case next rust-bitcoin version introduces again the m/
     #[test]
-    fn test_key_string_from_parts() {
+    fn test_xpub_with_origin() {
         let path = DerivationPath::from_str("m/48'/1'/0'/2'").unwrap();
         let fg = Fingerprint::from_hex("aabbccdd").unwrap();
         let xpub = Xpub::from_str("tpubDExA3EC3iAsPxPhFn4j6gMiVup6V2eH3qKyk69RcTc9TTNRfFYVPad8bJD5FCHVQxyBT4izKsvr7Btd2R4xmQ1hZkvsqGBaeE82J71uTK4N").unwrap();
-        assert_eq!(key_string_from_parts(fg, path, xpub), "[aabbccdd/48'/1'/0'/2']tpubDExA3EC3iAsPxPhFn4j6gMiVup6V2eH3qKyk69RcTc9TTNRfFYVPad8bJD5FCHVQxyBT4izKsvr7Btd2R4xmQ1hZkvsqGBaeE82J71uTK4N");
+        assert_eq!(xpub_with_origin(fg, &path, xpub), "[aabbccdd/48'/1'/0'/2']tpubDExA3EC3iAsPxPhFn4j6gMiVup6V2eH3qKyk69RcTc9TTNRfFYVPad8bJD5FCHVQxyBT4izKsvr7Btd2R4xmQ1hZkvsqGBaeE82J71uTK4N");
     }
 }

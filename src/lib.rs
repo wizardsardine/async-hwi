@@ -96,6 +96,15 @@ pub trait HWI: Debug {
     async fn sign_tx(&self, tx: &mut Psbt) -> Result<(), Error>;
 }
 
+pub fn xpub_with_origin(fg: Fingerprint, path: &DerivationPath, xpub: Xpub) -> String {
+    format!(
+        "[{}/{}]{}",
+        fg,
+        path.to_string().trim_start_matches("m/"),
+        xpub
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AddressScript {
     /// Must be a bip86 path.
