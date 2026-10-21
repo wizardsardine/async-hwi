@@ -40,7 +40,13 @@ impl<T: Transport> Specter<T> {
         self.transport
             .request(&format!("\r\n\r\nxpub {path}\r\n"))
             .await
-            .and_then(|resp| Xpub::from_str(&resp).map_err(|e| SpecterError::Device(e.to_string())))
+            .and_then(|resp| {
+                if resp == "error: User cancelled" {
+                    Err(SpecterError::UserCancelled)
+                } else {
+                    Xpub::from_str(&resp).map_err(|e| SpecterError::Device(e.to_string()))
+                }
+            })
     }
 
     /// If the descriptor contains master public keys but doesn't contain wildcard derivations,
@@ -345,5 +351,58 @@ impl From<SpecterError> for HWIError {
             SpecterError::Device(e) => HWIError::Device(e),
             SpecterError::UserCancelled => HWIError::UserRefused,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug)]
+    struct MockTransport {
+        response: String,
+    }
+
+    #[async_trait]
+    impl Transport for MockTransport {
+        async fn request(&self, _req: &str) -> Result<String, SpecterError> {
+            Ok(self.response.clone())
+        }
+    }
+
+    fn specter_with_response(response: &str) -> Specter<MockTransport> {
+        Specter {
+            transport: MockTransport {
+                response: response.to_string(),
+            },
+            kind: DeviceKind::Specter,
+        }
+    }
+
+    #[tokio::test]
+    async fn get_extended_pubkey_parses_a_normal_response() {
+        let xpub = "xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8";
+        let path = DerivationPath::from_str("m/84'/0'/0'").unwrap();
+        let specter = specter_with_response(xpub);
+        let result = specter.get_extended_pubkey(&path).await;
+        assert!(matches!(result, Ok(x) if x.to_string() == xpub));
+    }
+
+    #[tokio::test]
+    async fn get_extended_pubkey_maps_cancellation_to_user_cancelled() {
+        let path = DerivationPath::from_str("m/84'/0'/0'").unwrap();
+        let specter = specter_with_response("error: User cancelled");
+        let result = specter.get_extended_pubkey(&path).await;
+        assert!(matches!(result, Err(SpecterError::UserCancelled)));
+        // and it maps to the HWI-level error the rest of the crate expects
+        let hwi_err: HWIError = result.unwrap_err().into();
+        assert!(matches!(hwi_err, HWIError::UserRefused));
+    }
+
+    #[tokio::test]
+    async fn fingerprint_parses_a_normal_response() {
+        let specter = specter_with_response("d34db33f");
+        let result = specter.fingerprint().await;
+        assert!(result.is_ok());
     }
 }
