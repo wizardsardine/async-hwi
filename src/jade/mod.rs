@@ -1,3 +1,10 @@
+#[cfg(not(any(feature = "rustls", feature = "rustls-no-provider")))]
+compile_error!(
+    "the `jade` feature needs a TLS backend: enable `rustls` for the bundled \
+     aws-lc-rs provider, or `rustls-no-provider` and install a rustls \
+     CryptoProvider in your application"
+);
+
 pub mod api;
 pub mod pinserver;
 
